@@ -135,7 +135,7 @@ class ShareBrowserSession(
     /** A preview is a temporary copy, never the original shared file. */
     suspend fun prepareVideo(file: FileStat): Result<String> {
         if (file.isFolder || file.hash.isBlank()) {
-            return Result.failure(IllegalArgumentException("此视频无法临时预览"))
+            return Result.failure(IllegalArgumentException("此文件无法临时预览"))
         }
         val cleared = releasePreview()
         if (cleared.isFailure) return Result.failure(cleared.exceptionOrNull()!!)

@@ -47,7 +47,7 @@ sealed interface Screen : NavKey {
     data object ShareBrowser : Screen
 
     @Serializable
-    data class ImagePreview(val fileId: String, val fileName: String, val temporary: Boolean = false) : Screen
+    data class ImagePreview(val fileId: String, val fileName: String, val temporary: Boolean = false, val fromShare: Boolean = false) : Screen
 
     @Serializable
     data class VideoPlayer(

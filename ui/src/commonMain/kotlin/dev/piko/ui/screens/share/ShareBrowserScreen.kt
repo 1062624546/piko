@@ -32,6 +32,7 @@ fun ShareBrowserScreen(
     session: ShareBrowserSession,
     onBackHome: () -> Unit,
     onVideo: (FileStat) -> Unit,
+    onImage: (FileStat) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val downloadManager = LocalPikoServices.current.downloadManager
@@ -185,6 +186,16 @@ fun ShareBrowserScreen(
             images = images,
             initialIndex = images.indexOfFirst { it.id == file.id }.coerceAtLeast(0),
             onDismiss = { previewImage = null },
+            onOpenOriginal = { image ->
+                previewImage = null
+                preparing = true
+                scope.launch {
+                    session.prepareVideo(image)
+                        .onSuccess { onImage(image.copy(id = it)) }
+                        .onFailure { notice = "加载图片原图失败：" + it.message }
+                    preparing = false
+                }
+            },
         )
     }
 }

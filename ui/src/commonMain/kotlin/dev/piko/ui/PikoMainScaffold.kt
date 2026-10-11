@@ -1267,6 +1267,9 @@ fun PikoMainScaffold(
                                         onVideo = { file ->
                                             backStack.add(Screen.VideoPlayer(file.id, file.name, null, 0L, sharePreview = true))
                                         },
+                                        onImage = { file ->
+                                            backStack.add(Screen.ImagePreview(file.id, file.name, temporary = true, fromShare = true))
+                                        },
                                     )
                                 }
                                 entry<Screen.ImagePreview> { image ->
@@ -1275,8 +1278,8 @@ fun PikoMainScaffold(
                                         initialIndex = 0,
                                         onDismiss = {
                                             popBack()
-                                            // The original preview session retains the temporary file until
-                                            // the add-link task ends; don't delete other users' drive files.
+                                            if (image.fromShare) services.shareBrowser.releasePreviewInBackground()
+                                            // Other instant previews remain managed by the existing session.
                                         },
                                     )
                                 }
