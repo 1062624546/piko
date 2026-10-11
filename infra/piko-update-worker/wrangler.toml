@@ -1,7 +1,0 @@
-name = "piko-update"
-main = "src/index.js"
-compatibility_date = "2026-10-01"
-
-[vars]
-GITHUB_OWNER = "1062624546"
-GITHUB_REPOSITORY = "piko"

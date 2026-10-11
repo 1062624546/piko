@@ -1,9 +1,9 @@
-name: Android Release APK (feature)
+name: Android Signed Release APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - feature/share-browser-private
       - main
     paths:
       - "app/**"
@@ -15,7 +15,7 @@ on:
       - ".github/workflows/android-release-apk.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: android-release-apk-${{ github.ref }}
@@ -31,7 +31,6 @@ jobs:
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       PIKO_VERSION_NAME: 1.3.1
-      PIKO_UPDATE_METADATA_URL: ${{ vars.PIKO_UPDATE_METADATA_URL }}
       PIKO_VERSION_CODE: 1003001
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +63,11 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk dist/piko-1.3.1-universal.apk
           cp app/build/outputs/mapping/release/mapping.txt dist/piko-1.3.1-mapping.txt
           ls -lh dist
+      - name: Package corresponding source
+        run: |
+          # The upstream AGPL license requires corresponding source availability when distributing the APK.
+          git archive --format=tar.gz --output="dist/piko-$PIKO_VERSION_NAME-source.tar.gz" HEAD
+          test -s "dist/piko-$PIKO_VERSION_NAME-source.tar.gz"
       - uses: actions/upload-artifact@v4
         with:
           name: piko-share-release-apk
@@ -71,17 +75,44 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-      - name: Publish installable Piko 1.3.1 APK on main
+
+      - name: Publish signed APK to public update repository
         if: github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PIKO_UPDATES_TOKEN }}
+          UPDATE_REPOSITORY: 1062624546/piko-updates
         run: |
-          # A GitHub Release offers a direct .apk download, unlike an Actions artifact ZIP.
-          if gh release view v1.3.1 >/dev/null 2>&1; then
-            gh release upload v1.3.1 dist/piko-1.3.1-universal.apk --clobber
-          else
-            gh release create v1.3.1 dist/piko-1.3.1-universal.apk \
-              --target "$GITHUB_SHA" \
-              --title "Piko 1.3.1" \
-              --notes "安卓正式签名版 1.3：底部导航新增分享页面，支持输入分享链接、查看并恢复浏览历史。"
+          set -euo pipefail
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::PIKO_UPDATES_TOKEN is not configured. Signed APK stays in Actions artifacts; no online update is published."
+            exit 0
           fi
+          visibility="$(gh api "repos/$UPDATE_REPOSITORY" --jq .visibility)"
+          if [[ "$visibility" != "public" ]]; then
+            echo "::error::$UPDATE_REPOSITORY must be public so Android can check releases without a token."
+            exit 1
+          fi
+          tag="v$PIKO_VERSION_NAME"
+          if gh release view "$tag" --repo "$UPDATE_REPOSITORY" >/dev/null 2>&1; then
+            draft="$(gh release view "$tag" --repo "$UPDATE_REPOSITORY" --json isDraft --jq .isDraft)"
+            if [[ "$draft" != "true" ]]; then
+              echo "Release $tag is already published; not replacing an existing APK with a different build."
+              exit 0
+            fi
+          else
+            gh release create "$tag" --repo "$UPDATE_REPOSITORY" --target main --draft \
+              --title "Piko $PIKO_VERSION_NAME" \
+              --notes "修复分享图片预览，移除原社区入口，支持独立的在线更新渠道。"
+          fi
+          gh release upload "$tag" "dist/piko-$PIKO_VERSION_NAME-universal.apk" \
+            "dist/piko-$PIKO_VERSION_NAME-source.tar.gz" --repo "$UPDATE_REPOSITORY" --clobber
+          # GitHub computes release-asset SHA-256 on upload. It must be present
+          # in both API metadata and the fallback release.json for secure installs.
+          gh api "repos/$UPDATE_REPOSITORY/releases/tags/$tag" \
+            | jq '{tag_name,html_url,body,draft:false,prerelease:false,assets: [.assets[] | select(.name | endswith(".apk")) | {name,size,browser_download_url,digest}]}' \
+            > dist/release.json
+          jq -e '.assets | length > 0 and all(.[]; (.digest | type == "string" and startswith("sha256:")))' \
+            dist/release.json >/dev/null
+          gh release upload "$tag" dist/release.json --repo "$UPDATE_REPOSITORY" --clobber
+          gh release edit "$tag" --repo "$UPDATE_REPOSITORY" --draft=false
+          echo "Public update released: https://github.com/$UPDATE_REPOSITORY/releases/tag/$tag"

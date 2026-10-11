@@ -47,7 +47,8 @@ class AppUpdater(private val context: Context) : GithubUpdateService<AndroidUpda
         HttpClient(OkHttp),
         userAgent = "Piko/${BuildConfig.VERSION_NAME}",
         latestReleaseUrls = BuildConfig.PIKO_UPDATE_METADATA_URL.takeIf { it.isNotBlank() }
-            ?.let(::listOf) ?: GithubReleaseClient.LATEST_RELEASE_SOURCES,
+            ?.let { custom -> listOf(custom) + GithubReleaseClient.LATEST_RELEASE_SOURCES.filterNot { it == custom } }
+            ?: GithubReleaseClient.LATEST_RELEASE_SOURCES,
     ),
     currentVersion = BuildConfig.VERSION_NAME,
     checksOnStartup = !BuildConfig.DEBUG,
