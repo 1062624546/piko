@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import dev.piko.ui.platform.LocalPikoPlatform
 import io.github.nihildigit.pikpak.FileStat
@@ -80,7 +81,11 @@ fun ShareImageViewer(
             }
             if (controlsVisible) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .background(Color.Black.copy(alpha = 0.65f))
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onDismiss) {
@@ -91,6 +96,7 @@ fun ShareImageViewer(
                         color = Color.White,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     TextButton(onClick = { onOpenOriginal(images[pager.currentPage]) }) {
                         Text("原图", color = Color.White)
