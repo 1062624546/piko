@@ -67,6 +67,8 @@ class PikoServices(
     syncCipher: SyncCipher? = null,
     /** 用户自己部署的 MetaTube，两端传入；为 null 时设置里没有刮削一组（截图环境）。 */
     val metaTube: MetaTubeService? = null,
+    /** Long-lived share history should use persistent app files, not a disposable cache. */
+    shareHistoryStore: PikoCacheStore? = null,
 ) {
     // 不随任何界面结束的后台工作：离线任务的跟踪与 Piko-Temp 的清理
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -87,7 +89,7 @@ class PikoServices(
         mediaRepository.leaseFolder = { previewTempFolder.folderId().getOrThrow() }
     }
 
-    val shareBrowser = ShareBrowserSession(driveRepository, previewTempFolder, cacheStore, backgroundScope)
+    val shareBrowser = ShareBrowserSession(driveRepository, previewTempFolder, shareHistoryStore ?: cacheStore, backgroundScope)
 
     val vaultStore: VaultStore get() = driveRepository.vault
 

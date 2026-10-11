@@ -98,6 +98,7 @@ class PikoApplication : Application(), SingletonImageLoader.Factory {
             ),
             uploadSources = AndroidPikoUploadSources(this),
             cacheStore = FilePikoCacheStore(File(cacheDir, "piko").path),
+            shareHistoryStore = FilePikoCacheStore(File(filesDir, "piko/share-history").path),
             syncCipher = JvmSyncCipher(),
             metaTube = MetaTubeService(sessionManager) { HttpClient(OkHttp) },
         )
