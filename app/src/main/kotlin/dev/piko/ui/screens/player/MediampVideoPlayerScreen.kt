@@ -68,6 +68,7 @@ fun MediampVideoPlayerScreen(
     initialLocalPath: String? = null,
     initialStartMillis: Long? = null,
     onBackClick: () -> Unit,
+    sharePreview: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val app = PikoApplication.instance
