@@ -118,6 +118,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import dev.piko.ui.screens.instant.CollapseAddLinkLabel
 import dev.piko.ui.screens.instant.DiscardAddLinkButton
 import dev.piko.ui.screens.share.ShareHomeScreen
+import dev.piko.ui.screens.drive.ImageViewer
+import dev.piko.data.repository.isPreviewableImage
 import dev.piko.ui.screens.share.ShareBrowserScreen
 import dev.piko.ui.screens.instant.DockedAddLink
 import dev.piko.ui.screens.instant.FloatingAddLinkSheet
@@ -280,6 +282,7 @@ private val NavKeyConfiguration = SavedStateConfiguration {
             subclass(Screen.Profile::class)
             subclass(Screen.MyShares::class)
             subclass(Screen.ShareBrowser::class)
+            subclass(Screen.ImagePreview::class)
             subclass(Screen.Settings::class)
             subclass(Screen.WebDav::class)
             subclass(Screen.VideoPlayer::class)
@@ -805,7 +808,10 @@ fun PikoMainScaffold(
                 when (columnShows) {
                     SideColumnContent.AddLink -> EscClosesWhenFocused(onClose = instantSession::collapse) {
                         instantSession.state?.let { state ->
-                            DockedAddLink(state, onPreview = { fileId, fileName -> playVideo(FileStat(id = fileId, name = fileName), emptyList()) })
+                            DockedAddLink(state, onPreview = { fileId, fileName ->
+                                if (fileName.isPreviewableImage()) backStack.add(Screen.ImagePreview(fileId, fileName, temporary = true))
+                                else playVideo(FileStat(id = fileId, name = fileName), emptyList())
+                            })
                         }
                     }
                     // 信息流不拦 Esc：它一打开就取得焦点，拦下的话 Esc 关掉信息流、清空刷了半天的队列，人本想回上一级
@@ -970,7 +976,8 @@ fun PikoMainScaffold(
                             onCloseInstant = { instantSession.collapse() },
                             onPreviewInstant = { fileId, fileName ->
                                 instantSession.collapse()
-                                playVideo(FileStat(id = fileId, name = fileName), emptyList())
+                                if (fileName.isPreviewableImage()) backStack.add(Screen.ImagePreview(fileId, fileName, temporary = true))
+                                else playVideo(FileStat(id = fileId, name = fileName), emptyList())
                             },
                         )
                     }
@@ -1262,6 +1269,17 @@ fun PikoMainScaffold(
                                         },
                                     )
                                 }
+                                entry<Screen.ImagePreview> { image ->
+                                    ImageViewer(
+                                        images = listOf(FileStat(id = image.fileId, name = image.fileName)),
+                                        initialIndex = 0,
+                                        onDismiss = {
+                                            popBack()
+                                            // The original preview session retains the temporary file until
+                                            // the add-link task ends; don't delete other users' drive files.
+                                        },
+                                    )
+                                }
                                 entry<Screen.MyShares> { MySharesScreen(onBackClick = paneBack, onLocate = ::revealInDrive) }
                                 entry<Screen.Settings> {
                                     SettingsScreen(
@@ -1327,7 +1345,10 @@ fun PikoMainScaffold(
                         FloatingAddLinkSheet(
                             session = instantSession,
                             state = instantState,
-                            onPreview = { fileId, fileName -> playVideo(FileStat(id = fileId, name = fileName), emptyList()) },
+                            onPreview = { fileId, fileName ->
+                                if (fileName.isPreviewableImage()) backStack.add(Screen.ImagePreview(fileId, fileName, temporary = true))
+                                else playVideo(FileStat(id = fileId, name = fileName), emptyList())
+                            },
                         )
                     }
                 }

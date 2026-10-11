@@ -43,7 +43,12 @@ data class AndroidUpdate(
  * 所以 debug 包只检查、不安装，由界面改为打开 Release 页面；开屏也不查。
  */
 class AppUpdater(private val context: Context) : GithubUpdateService<AndroidUpdate>(
-    releases = GithubReleaseClient(HttpClient(OkHttp), userAgent = "Piko/${BuildConfig.VERSION_NAME}"),
+    releases = GithubReleaseClient(
+        HttpClient(OkHttp),
+        userAgent = "Piko/${BuildConfig.VERSION_NAME}",
+        latestReleaseUrls = BuildConfig.PIKO_UPDATE_METADATA_URL.takeIf { it.isNotBlank() }
+            ?.let(::listOf) ?: GithubReleaseClient.LATEST_RELEASE_SOURCES,
+    ),
     currentVersion = BuildConfig.VERSION_NAME,
     checksOnStartup = !BuildConfig.DEBUG,
     log = { message, cause -> PikoLog.w("Update", message, cause) },

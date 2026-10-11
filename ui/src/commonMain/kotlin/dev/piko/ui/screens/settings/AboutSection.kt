@@ -14,10 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.Campaign
-import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Badge
@@ -25,7 +22,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,7 +52,7 @@ import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 
 /**
- * 关于：版本与更新、项目链接、自动检查更新与日志。有「我的」页时放在那里，设置入口的下面；
+ * 关于：版本与更新、自动检查更新与日志。有「我的」页时放在那里，设置入口的下面；
  * 有整条侧边栏的宽窗口里没有「我的」页，与账号一样收进设置。
  *
  * 更新对话框与更新器的提示随它走：更新器的一次性提示多由对话框里的操作引起，放在别处就没人接。
@@ -89,8 +85,6 @@ internal fun AboutSection(snackbarHostState: SnackbarHostState, modifier: Modifi
                     else -> scope.launch { updater.check() }
                 }
             },
-            onOpenRepository = { platform.openUrl(REPOSITORY_URL) },
-            onOpenChannel = { platform.openUrl(CHANNEL_URL) },
         )
         // 没有应用内更新的平台不给这个开关
         if (updater != null) {
@@ -133,11 +127,6 @@ internal fun AboutSection(snackbarHostState: SnackbarHostState, modifier: Modifi
     }
 }
 
-private const val REPOSITORY_URL = "https://github.com/NihilDigit/piko"
-
-// 更新与公告发在这个频道里，应用内不另做公告栏
-private const val CHANNEL_URL = "https://t.me/piko_dev"
-
 /** 开头写明版本与运行环境，收到的人不必再问；文件名带时间，多次导出不会互相覆盖。 */
 private suspend fun exportLogs(platform: PikoPlatform) {
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -148,7 +137,7 @@ private suspend fun exportLogs(platform: PikoPlatform) {
 }
 
 /**
- * 版本、更新状态与两个动作放在一张小卡片里。
+ * 版本与更新状态放在一张卡片里。
  * 原先是三行列表，版本号占一整行，「检查更新」的状态又要另读一行副标题。
  */
 @Composable
@@ -157,8 +146,6 @@ private fun AboutCard(
     /** 没有应用内更新的平台为 null，不显示更新按钮。 */
     updateStatus: UpdateStatus?,
     onUpdateClick: () -> Unit,
-    onOpenRepository: () -> Unit,
-    onOpenChannel: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     SettingsCard {
@@ -214,20 +201,7 @@ private fun AboutCard(
                         }
                     }
                 }
-                OutlinedButton(onClick = onOpenRepository) {
-                    Icon(Icons.Outlined.Code, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("开源仓库")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                }
-                OutlinedButton(onClick = onOpenChannel) {
-                    Icon(Icons.Outlined.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Telegram 频道")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                }
+
             }
         }
     }

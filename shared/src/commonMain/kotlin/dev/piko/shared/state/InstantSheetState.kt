@@ -575,7 +575,7 @@ class InstantSheetState private constructor(
     /** 可以预览的行：已收录的视频。未收录的秒传不了，也就没法先放进网盘里播。 */
     fun canPreview(index: Int): Boolean {
         val item = items.getOrNull(index) ?: return false
-        return item.isInstantReady && item.file.name.fileCategory() == FileCategory.VIDEO
+        return item.isInstantReady && item.file.name.fileCategory() in setOf(FileCategory.VIDEO, FileCategory.IMAGE)
     }
 
     /**
@@ -591,7 +591,7 @@ class InstantSheetState private constructor(
         private set
 
     fun previewSharedFile(file: io.github.nihildigit.pikpak.FileStat) {
-        if (file.isFolder || file.name.fileCategory() != FileCategory.VIDEO || file.hash.isBlank() || previewingIndex != null) return
+        if (file.isFolder || file.name.fileCategory() !in setOf(FileCategory.VIDEO, FileCategory.IMAGE) || file.hash.isBlank() || previewingIndex != null) return
         previewingSharedId = file.id
         previewFile(io.github.nihildigit.pikpak.ResolvedFile(file.name, file.sizeBytes, file.hash), -1)
         if (previewingIndex == null) previewingSharedId = null

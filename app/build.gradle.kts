@@ -51,6 +51,13 @@ android {
         targetSdk = 37
         versionCode = appVersionCode.get()
         versionName = appVersionName.get()
+        // Optional public JSON endpoint (GitHub latest-release format), injected at build time.
+        // Never embed a GitHub private access token in an APK.
+        val updateUrl = providers.environmentVariable("PIKO_UPDATE_METADATA_URL").orElse("").get()
+        require(updateUrl.isBlank() || (updateUrl.startsWith("https://") && !updateUrl.contains('"') && !updateUrl.contains('\\'))) {
+            "PIKO_UPDATE_METADATA_URL must be a public HTTPS URL"
+        }
+        buildConfigField("String", "PIKO_UPDATE_METADATA_URL", "\"$updateUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
