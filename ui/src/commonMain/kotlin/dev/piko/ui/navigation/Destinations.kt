@@ -44,12 +44,16 @@ sealed interface Screen : NavKey {
     data object MyShares : Screen
 
     @Serializable
+    data object ShareBrowser : Screen
+
+    @Serializable
     data class VideoPlayer(
         val fileId: String,
         val fileName: String,
         val localPath: String? = null,
         /** 从这里开播，不查续播记录。 */
         val startMillis: Long? = null,
+        val sharePreview: Boolean = false,
     ) : Screen
 }
 

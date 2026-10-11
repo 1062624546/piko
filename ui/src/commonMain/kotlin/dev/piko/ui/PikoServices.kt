@@ -29,6 +29,7 @@ import dev.piko.shared.state.ClipFeedSession
 import dev.piko.shared.state.DuplicateFinderState
 import dev.piko.shared.state.DuplicateSession
 import dev.piko.shared.state.InstantSaveRecords
+import dev.piko.shared.state.ShareBrowserSession
 import dev.piko.shared.state.InstantSession
 import dev.piko.shared.state.InstantSheetState
 import dev.piko.shared.state.launchOnAccountLeave
@@ -85,6 +86,8 @@ class PikoServices(
         // 打开归档条目时借的对象放进 Piko-Temp：取到直链就删，偶有删不掉的也随 Piko-Temp 一起清走
         mediaRepository.leaseFolder = { previewTempFolder.folderId().getOrThrow() }
     }
+
+    val shareBrowser = ShareBrowserSession(driveRepository, previewTempFolder, cacheStore, backgroundScope)
 
     val vaultStore: VaultStore get() = driveRepository.vault
 
@@ -195,6 +198,7 @@ class PikoServices(
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launchOnAccountLeave(clientManager) { left ->
             PikoLog.i(TAG, "${if (clientManager.currentClient.value == null) "退出登录" else "换号"}：结束上一账号的进程级会话")
             instantSession.end()
+            shareBrowser.switchAccount(null)
             duplicateSession.end()
             archiveExtractSession.clear()
             archiveBrowser.clear()
@@ -208,6 +212,7 @@ class PikoServices(
                 if (client == null) return@collectLatest
                 // 上次进程被杀时面板来不及清 Piko-Temp，登录后补上。每个账号只清一次：断线重连
                 // 也会换一个新的 client，那时面板可能正开着，预览的文件还要用
+                shareBrowser.switchAccount(client.account)
                 if (cleanedAccounts.add(client.account)) previewTempFolder.clear().logFailure(TAG, "登录后清理 Piko-Temp 失败")
                 // 换号或退出登录时 collectLatest 取消它，换成新账号的记录重来
                 offlinePacks.run(client.account)

@@ -98,6 +98,9 @@ import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneSt
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import io.github.nihildigit.pikpak.shareIdFromUrl
+import dev.piko.shared.state.InstantSheetState
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -114,6 +117,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import dev.piko.ui.screens.instant.CollapseAddLinkLabel
 import dev.piko.ui.screens.instant.DiscardAddLinkButton
+import dev.piko.ui.screens.share.ShareBrowserScreen
 import dev.piko.ui.screens.instant.DockedAddLink
 import dev.piko.ui.screens.instant.FloatingAddLinkSheet
 import dev.piko.ui.screens.instant.rememberDiscardAddLink
@@ -274,6 +278,7 @@ private val NavKeyConfiguration = SavedStateConfiguration {
             subclass(Screen.Home::class)
             subclass(Screen.Profile::class)
             subclass(Screen.MyShares::class)
+            subclass(Screen.ShareBrowser::class)
             subclass(Screen.Settings::class)
             subclass(Screen.WebDav::class)
             subclass(Screen.VideoPlayer::class)
@@ -549,6 +554,17 @@ fun PikoMainScaffold(
     // suspendFeed 那一处），信息流挤不走添加链接（「信息流」入口置灰）：添加链接是有未完成工作的任务，信息流只是浏览。
     // 添加链接收成右下角的浮动卡片后右栏就空出来了，信息流照常打开
     val instantSession = services.instantSession
+    val shareBrowser = services.shareBrowser
+    val shareInput = instantSession.state?.input
+    LaunchedEffect(shareInput) {
+        val raw = shareInput ?: return@LaunchedEffect
+        val url = InstantSheetState.findShareLink(raw) ?: return@LaunchedEffect
+        delay(600)
+        val id = shareIdFromUrl(url)
+        shareBrowser.open(id, InstantSheetState.findSharePassCode(raw).orEmpty())
+        instantSession.collapse()
+        if (backStack.lastOrNull() != Screen.ShareBrowser) backStack.add(Screen.ShareBrowser)
+    }
     val addLinkDocked = panelFits && instantSession.state != null && instantSession.isSheetOpen
     val feedBlockedReason = if (addLinkDocked) "添加链接进行中，关闭后可打开信息流" else null
     val feedInPanel = feedOnFilesTab && panelFits && !addLinkDocked
@@ -858,6 +874,9 @@ fun PikoMainScaffold(
         libraryDestination(DriveLibrary.STARRED, "starred"),
         libraryDestination(DriveLibrary.RECENT, "recent added uploads 新增"),
         libraryDestination(DriveLibrary.HISTORY, "history"),
+        PaletteItem("浏览过的分享", Icons.Outlined.Share, "页面", keywords = "share history 分享历史") {
+            backStack.add(Screen.ShareBrowser)
+        },
         PaletteItem("我的分享", Icons.Outlined.Share, "页面", keywords = "shares") { openPage(Screen.MyShares) },
         libraryDestination(DriveLibrary.TRASH, "trash bin"),
         PaletteItem("设置", Icons.Outlined.Settings, "页面", keywords = "settings preferences") { openPage(Screen.Settings) },
@@ -1187,6 +1206,15 @@ fun PikoMainScaffold(
                                         onOpenLibrary = ::openLibraryFromProfile,
                                         // 侧边栏在时它的「我的」就是出口，列表栏不再给返回
                                         onBackClick = if (sidebarMode) null else ::closeProfile,
+                                    )
+                                }
+                                entry<Screen.ShareBrowser> {
+                                    ShareBrowserScreen(
+                                        session = services.shareBrowser,
+                                        onBackHome = ::popBack,
+                                        onVideo = { file ->
+                                            backStack.add(Screen.VideoPlayer(file.id, file.name, null, 0L, sharePreview = true))
+                                        },
                                     )
                                 }
                                 entry<Screen.MyShares> { MySharesScreen(onBackClick = paneBack, onLocate = ::revealInDrive) }

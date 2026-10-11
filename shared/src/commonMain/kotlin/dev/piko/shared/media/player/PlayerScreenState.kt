@@ -61,7 +61,11 @@ class PlayerScreenState(
      * 挂起取值而不是收集成 State：头一集准备时收集多半还没拿到第一个值，会按原画开。
      */
     private val defaultMaxHeight: suspend () -> Int = { 0 },
+    private val ephemeralSharePreview: Boolean = false,
 ) {
+    var sharePlaybackCompleted by mutableStateOf(false)
+        private set
+
     var fileId by mutableStateOf(initialFileId)
         private set
     var title by mutableStateOf(initialFileName)
@@ -232,7 +236,7 @@ class PlayerScreenState(
                 if (startedThisAttempt && position > 0L) lastKnownPositionMillis = position
             }
         }
-        scope.launch { persistLoop() }
+        if (!ephemeralSharePreview) scope.launch { persistLoop() }
         scope.launch {
             // 有人在等时读得最急，见 PikPakStreamReader.urgent：开播前、拖动后、卡顿时。平时播放器往后缓冲的读
             // 排在它们之后，拖动那一下不必与自己的缓冲读排队。拖动单独记：桌面端后端拖动时不报缓冲，
@@ -437,9 +441,9 @@ class PlayerScreenState(
         val previousKey = positionKey
         val previousPosition = lastKnownPositionMillis
         val previousDuration = durationMillis
-        scope.launch { persist(previousKey, previousPosition, previousDuration) }
+        if (!ephemeralSharePreview) scope.launch { persist(previousKey, previousPosition, previousDuration) }
         // 上一集最后不足一个上报间隔的进度，换片后就报不出去了，这里补一次
-        if (startedThisAttempt && !isImage) {
+        if (!ephemeralSharePreview && startedThisAttempt && !isImage) {
             val previousFileId = this.fileId
             scope.launch { runCatchingNonCancel { repository.reportPlay(previousFileId, previousPosition, previousDuration) } }
         }
@@ -514,7 +518,7 @@ class PlayerScreenState(
         backend.stop()
         closePrepared()
         try {
-            val pending = pendingStartMillis
+            val pending = if (ephemeralSharePreview) 0L else pendingStartMillis
             pendingStartMillis = null
             // 同步开着时优先用 PikPak 播放历史里的位置：它含其他客户端看到的进度。查它要一次请求，
             // 与取流并行，到开播前才取结果，等不到就退回本机记录
@@ -597,6 +601,11 @@ class PlayerScreenState(
             }
 
             PlaybackBackendEvent.Ended -> {
+                if (ephemeralSharePreview) {
+                    backend.stop()
+                    sharePlaybackCompleted = true
+                    return
+                }
                 val key = positionKey
                 scope.launch { runCatchingNonCancel { repository.savePlaybackPosition(key, 0L) } }
                 // 放完接着放下一集。switchTo 会按片尾位置再存一次，而片尾位置存的也是 0

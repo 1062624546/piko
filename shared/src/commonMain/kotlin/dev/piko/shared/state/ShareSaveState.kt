@@ -41,6 +41,7 @@ class ShareSaveState(
     val shareId: String,
     /** 随链接一起转发来的提取码，有就直接用上，省得再问一遍。 */
     initialPassCode: String = "",
+    private val initialPath: List<PikoPathBreadcrumb> = emptyList(),
 ) {
     var info by mutableStateOf<ShareInfo?>(null)
         private set
@@ -83,6 +84,12 @@ class ShareSaveState(
                     needsPassCode = false
                     path.clear()
                     entries = share.files
+                    for (crumb in initialPath) {
+                        val target = entries.firstOrNull { it.id == crumb.id && it.isFolder } ?: break
+                        val listing = driveRepo.shareFolder(shareId, share.passCodeToken, target.id).getOrNull() ?: break
+                        path += PikoPathBreadcrumb(target.id, target.name)
+                        entries = listing
+                    }
                 }
                 .onFailure { error ->
                     val unavailable = error as? ShareUnavailableException

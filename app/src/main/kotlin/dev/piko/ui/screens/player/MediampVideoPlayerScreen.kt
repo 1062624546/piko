@@ -18,6 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -77,6 +80,7 @@ fun MediampVideoPlayerScreen(
         val hardwareDecoding = runBlocking { preferences.hardwareDecodingFlow.first() }
         MpvPlaybackBackend(context.applicationContext, hardwareDecoding = hardwareDecoding)
     }
+    var finishedCleanup by remember { mutableStateOf<String?>(null) }
     val state = remember(initialFileId) {
         PlayerScreenState(
             repository = app.mediampMediaRepository,
@@ -93,10 +97,17 @@ fun MediampVideoPlayerScreen(
                     ?: siblingVideos.find { it.id == fileId }?.let { app.downloadManager.findCompletedLocalPath(it) }
             },
             defaultMaxHeight = { preferences.playbackMaxHeightFlow.first() },
+            ephemeralSharePreview = sharePreview,
         )
     }
     DisposableEffect(state) {
         onDispose { state.release() }
+    }
+    LaunchedEffect(state.sharePlaybackCompleted) {
+        if (sharePreview && state.sharePlaybackCompleted) {
+            val deleted = app.services.shareBrowser.releasePreview()
+            finishedCleanup = if (deleted.isSuccess) "临时视频已清理" else "临时视频清理失败，可重试"
+        }
     }
     DisposableEffect(backend) {
         onDispose { backend.release() }
@@ -196,6 +207,26 @@ fun MediampVideoPlayerScreen(
     }
 
     Box(modifier.fillMaxSize().background(Color.Black)) {
+        if (sharePreview && state.sharePlaybackCompleted) {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("播放完毕") },
+                text = { Text(finishedCleanup ?: "正在清理临时视频…") },
+                confirmButton = { TextButton(onClick = leave) { Text("返回分享目录") } },
+                dismissButton = {
+                    if (finishedCleanup?.contains("失败") == true) {
+                        TextButton(onClick = {
+                            finishedCleanup = null
+                            scope.launch {
+                                val deleted = app.services.shareBrowser.releasePreview()
+                                finishedCleanup = if (deleted.isSuccess) "临时视频已清理" else "临时视频清理失败，可重试"
+                            }
+                        }) { Text("重试清理") }
+                    }
+                },
+            )
+        }
+
         if (state.isImage) {
             AsyncImage(
                 model = state.mediaInfo?.currentUrl,

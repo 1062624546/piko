@@ -83,7 +83,11 @@ class MainActivity : ComponentActivity() {
                 initialFileName = screen.fileName,
                 initialLocalPath = screen.localPath,
                 initialStartMillis = screen.startMillis,
-                onBackClick = onClose,
+                onBackClick = {
+                    onClose()
+                    if (screen.sharePreview) app.services.shareBrowser.releasePreviewInBackground()
+                },
+                sharePreview = screen.sharePreview,
             )
         }
 
