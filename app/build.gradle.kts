@@ -19,10 +19,10 @@ require(!releaseSigningConfigured || releaseSigningValues.all { it.isPresent }) 
     "Release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, " +
         "ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD together."
 }
-val appVersionName = providers.environmentVariable("PIKO_VERSION_NAME").orElse("1.3.0")
+val appVersionName = providers.environmentVariable("PIKO_VERSION_NAME").orElse("1.3.1")
 val appVersionCode = providers.environmentVariable("PIKO_VERSION_CODE")
     .map { it.toInt() }
-    .orElse(1003000)
+    .orElse(1003001)
 require(appVersionCode.get() > 0) { "PIKO_VERSION_CODE must be greater than zero." }
 
 val enableAbiSplits = providers.gradleProperty("piko.enableAbiSplits")
@@ -51,6 +51,13 @@ android {
         targetSdk = 37
         versionCode = appVersionCode.get()
         versionName = appVersionName.get()
+        // Optional public JSON endpoint (GitHub latest-release format), injected at build time.
+        // Never embed a GitHub private access token in an APK.
+        val updateUrl = providers.environmentVariable("PIKO_UPDATE_METADATA_URL").orElse("").get()
+        require(updateUrl.isBlank() || (updateUrl.startsWith("https://") && !updateUrl.contains('"') && !updateUrl.contains('\\'))) {
+            "PIKO_UPDATE_METADATA_URL must be a public HTTPS URL"
+        }
+        buildConfigField("String", "PIKO_UPDATE_METADATA_URL", "\"$updateUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -1580,7 +1580,8 @@ fun DriveScreen(
                     // 先收起：播放器压栈进来时网盘页还看得见那一截，回来接着挑
                     onPreview = { fileId, fileName ->
                         instantSession.collapse()
-                        navigateToPlayer(FileStat(id = fileId, name = fileName), emptyList())
+                        if (fileName.isPreviewableImage()) previewImage = FileStat(id = fileId, name = fileName)
+                        else navigateToPlayer(FileStat(id = fileId, name = fileName), emptyList())
                     },
                 )
             },

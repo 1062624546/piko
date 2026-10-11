@@ -1,117 +1,51 @@
-<p align="right"><b>简体中文</b> | <a href="README.en.md">English</a></p>
+# Piko Android 修改版
 
-<p align="center"><img src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/icon.png" alt="Piko" width="96"></p>
+本项目基于 [NihilDigit/piko](https://github.com/NihilDigit/piko) 修改，由 [1062624546](https://github.com/1062624546) 独立维护，**并非原作者官方版本，也非 PikPak 官方客户端**。
 
-<h1 align="center">Piko</h1>
+本仓库仅维护 **Android 手机版本（Android 8.0 及以上）**。上游支持 Windows、macOS 和 Linux；本修改版不提供这些平台的维护、构建和安装包。仓库保留部分共用及桌面代码，以便复用业务逻辑和跟进上游。
 
-<p align="center">
-<a href="#安装"><img alt="Android 8.0+" src="https://img.shields.io/badge/Android-8.0%2B-306EFF?style=flat-square&logo=android&logoColor=white"></a>
-<a href="#安装"><img alt="Windows 10+ x64" src="https://img.shields.io/badge/Windows-10%2B%20x64-306EFF?style=flat-square&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0yIDJoOS41djkuNUgyek0xMi41IDJIMjJ2OS41aC05LjV6TTIgMTIuNWg5LjVWMjJIMnpNMTIuNSAxMi41SDIyVjIyaC05LjV6Ii8+PC9zdmc+"></a>
-<a href="#安装"><img alt="Windows 11+ arm64" src="https://img.shields.io/badge/Windows-11%2B%20arm64-306EFF?style=flat-square&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0yIDJoOS41djkuNUgyek0xMi41IDJIMjJ2OS41aC05LjV6TTIgMTIuNWg5LjVWMjJIMnpNMTIuNSAxMi41SDIyVjIyaC05LjV6Ii8+PC9zdmc+"></a>
-<a href="#安装"><img alt="macOS 12+ arm64" src="https://img.shields.io/badge/macOS-12%2B%20arm64-306EFF?style=flat-square&logo=apple&logoColor=white"></a>
-<a href="#安装"><img alt="Linux x64" src="https://img.shields.io/badge/Linux-x64-306EFF?style=flat-square&logo=linux&logoColor=white"></a>
-<br>
-<a href="https://github.com/NihilDigit/piko/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/NihilDigit/piko?style=flat-square&color=306EFF&label=Release&logo=github&logoColor=white"></a>
-<a href="https://github.com/NihilDigit/piko/attestations"><img alt="SLSA Build L3" src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/badges/slsa-l3.svg"></a>
-<a href="LICENSE"><img alt="License AGPL-3.0-or-later" src="https://img.shields.io/badge/License-AGPL--3.0--or--later-306EFF?style=flat-square&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xIDIxdi0yaDEwVjcuODI1UTEwLjM1IDcuNiA5Ljg3NSA3LjEyNVQ5LjE3NSA2SDZsMyA3cTAgMS4yNS0xLjAyNSAyLjEyNVQ1LjUgMTZxLTEuNDUgMC0yLjQ3NS0uODc1VDIgMTNsMy03SDNWNGg2LjE3NXEuMy0uODc1IDEuMDc1LTEuNDM3VDEyIDJxLjk3NSAwIDEuNzUuNTYzVDE0LjgyNSA0SDIxdjJoLTJsMyA3cTAgMS4yNS0xLjAyNSAyLjEyNVQxOC41IDE2cS0xLjQ1IDAtMi40NzUtLjg3NVQxNSAxM2wzLTdoLTMuMTc1cS0uMjI1LjY1LS43IDEuMTI1VDEzIDcuODI1VjE5aDEwdjJIMVptMTUuNjI1LThoMy43NUwxOC41IDguNjUgMTYuNjI1IDEzWm0tMTMgMGgzLjc1TDUuNSA4LjY1IDMuNjI1IDEzWk0xMiA2cS40MjUgMCAuNzEzLS4yODhUMTMgNXEwLS40MjUtLjI4OC0uNzEzVDEyIDRxLS40MjUgMC0uNzEzLjI4OFQxMSA1cTAgLjQyNS4yODguNzEzVDEyIDZaIi8+PC9zdmc+Cg=="></a></p>
+## 功能
 
-<p align="center"><b>高性能、多平台的 PikPak 客户端</b></p>
+- PikPak 网盘文件管理、上传、下载和视频播放。
+- 底部「分享」入口：输入分享链接，查看分享浏览历史并恢复目录。
+- 分享目录浏览、当前文件夹搜索、当前目录多选和转存。
+- 分享视频临时预览及清理，不记录分享视频观看进度。
+- 分享图片预览与原图加载。
+- Android 在线检查更新、下载 APK 和 SHA-256 校验，安装由 Android 系统确认。
 
-<p align="center">开发进展与更新日志发布在 Telegram 频道 <a href="https://t.me/piko_dev">@piko_dev</a></p>
+实际行为以发布版本为准。网盘服务能力与限制由 PikPak 提供。
 
-<p align="center"><a href="https://trendshift.io/repositories/263280?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-263280" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/263280/weekly?language=Kotlin" alt="Trendshift: NihilDigit/piko" width="250" height="53"/></a></p>
+## 安装与更新
 
-## 自适应布局
+从本仓库的 [Releases](https://github.com/1062624546/piko/releases) 下载正式签名 APK。文件名为 `piko-版本号-universal.apk`，下载后直接安装，无需解压。
 
-桌面端贴合键鼠操作，移动端简洁易用。
+首次从旧更新渠道迁移时，请手动安装接入本仓库更新源的 1.3.1 或更新版本。之后可在 App 的「检查更新」中下载新版本；正式版也支持启动时检查。覆盖安装需要相同包名和签名，后续发版沿用原签名密钥。
 
-<p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/hero-dark.jpg">
-<img src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/hero.jpg" alt="桌面端与手机端的海报墙">
-</picture>
-</p>
+Debug APK 用于测试，不作为正式更新包。
 
-## 信息流
+## 在线更新与开发
 
-随机播放当前文件夹里的视频片段，上下滑动切换。
+版本查询使用 `https://api.github.com/repos/1062624546/piko/releases/latest`，失败时尝试本仓库最新 Release 的 `release.json`。客户端不携带 GitHub Token。
 
-<p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" type="image/avif" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/feed-dark.avif">
-<source type="image/avif" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/feed.avif">
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/feed-dark.jpg">
-<img src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/feed.jpg" alt="网盘右侧的信息流，上下滑动切换视频片段">
-</picture>
-</p>
+主分支的 Android 代码或正式发布工作流变更会触发测试、正式签名构建和发布。仓库凭据由 GitHub Actions 提供，签名密钥通过 Actions Secrets 配置。
 
-## 链接与文件名解析
+详见 [Android 在线更新说明](docs/android-online-updates.md) 和 [贡献说明](CONTRIBUTING.md)。
 
-解析磁力链接、种子、下载地址与分享链接，保存前可完整预览、按文件挑选。文件按作品与集数整理，收起样片与花絮。
+## 修改记录
 
-<p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/links-dark.jpg">
-<img src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/links.jpg" alt="网盘中按作品整理的剧集，右侧是解析磁力链接的面板">
-</picture>
-</p>
+- 1.3.0：底部导航新增分享入口，接入分享浏览历史。
+- 1.3.1（发布状态见 Releases）：修复分享图片预览；更新渠道改为本仓库；改为仅维护 Android。
+- 本轮修改日期：2026-10-11。更完整的修改记录见 Git 提交历史与 Release 说明。
 
-## 传输
+## 许可证与致谢
 
-多连接并发，自动绕开缓慢或无响应的节点，优化弱网下的使用体验。蜗牛模式限速，不影响播放。
+本修改版按 [AGPL-3.0-or-later](LICENSE) 发布，保留上游版权声明及许可证。原项目 README 标明，1.1.0 及更早版本曾使用 MIT；本修改版以当前代码的 AGPL 许可为准。
 
-<p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/transfers-dark.jpg">
-<img src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/transfers.jpg" alt="传输页：进行中与已完成的下载、上传与云端任务">
-</picture>
-</p>
+发布 APK 时提供对应源码归档和构建文件。开源许可允许合规商业分发，也赋予接收者依法使用、修改及再分发的权利。
 
-## 文件处理
-
-支持截取视频片段与查找重复文件。
-
-<p align="center">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/tools-dark.jpg">
-<img src="https://raw.githubusercontent.com/NihilDigit/piko/main/docs/screenshots/tools.jpg" alt="手机上的截取视频片段与查找重复">
-</picture>
-</p>
-
-## 安装
-
-前往 [Releases](https://github.com/NihilDigit/piko/releases/latest) 下载。安装包均由 GitHub Actions 从源码构建，Release 页面按设备列出应下载的文件。
-
-- **Android**：Android 8.0 及以上。按设备架构选择 APK，无法确定时选 `universal`。
-- **Windows**：x64 需 Windows 10 及以上，arm64 需 Windows 11 及以上。`.msi` 为安装版，`.7z` 为便携版；Windows 11 可在资源管理器中直接解压，Windows 10 可用 [NanaZip](https://apps.microsoft.com/detail/9n8g7tscl18r) 或 7-Zip 解压。
-- **macOS**（实验性）：macOS 12 及以上，仅 Apple 芯片。安装包未经公证，首次打开需在「系统设置」→「隐私与安全性」中放行。
-- **Linux**（实验性）：x64，需 glibc 2.38 及以上（Ubuntu 24.04、Debian 13、Fedora 39 或更新）。AppImage 添加执行权限后运行。
-
-## 贡献
-
-路线图见 [#10](https://github.com/NihilDigit/piko/issues/10)。
-
-欢迎提交 Issue 与 PR。小的 Bug 修复、崩溃排查与文档补充可以直接提交。
-
-计划新增功能或调整架构时，请先提交 Issue，说明使用场景与拟定方案，确认方向后再实现。
-
-使用 LLM 辅助编写代码时，请理解新增代码的逻辑，并在真机上验证。
-
-提交 PR 前须签署[贡献者协议](CLA.md)，签署方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-## 许可与致谢
-
-- 源码以 [AGPL-3.0-or-later](LICENSE) 许可证开源。1.1.0 及更早的版本以 MIT 许可证发布。
-  Android 安装包内置以 GPLv3 构建的 mpv 与 FFmpeg。
-- PikPak 接口实现参考了 [52funny/pikpakcli](https://github.com/52funny/pikpakcli)。
-- 多项功能设计参考了 PikPak 网页端增强脚本 [digbug82/PikPak_Enhancement_Master](https://github.com/digbug82/PikPak_Enhancement_Master)。
-- Windows 端 mpv 的零拷贝渲染由 [MediaMP](https://github.com/open-ani/mediamp) 实现。
-
-## Star History
-
-<a href="https://www.star-history.com/#nihildigit/piko&Date">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nihildigit/piko&type=Date&theme=dark&legend=bottom-right">
-<img alt="Star History Chart" src="https://api.star-history.com/svg?repos=nihildigit/piko&type=Date&legend=bottom-right">
-</picture>
-</a>
+- 原项目及主要实现：[NihilDigit/piko](https://github.com/NihilDigit/piko)。
+- PikPak SDK：[NihilDigit/pikpak-kotlin](https://github.com/NihilDigit/pikpak-kotlin)。
+- PikPak 接口实现参考：[52funny/pikpakcli](https://github.com/52funny/pikpakcli)。
+- 功能设计参考：[digbug82/PikPak_Enhancement_Master](https://github.com/digbug82/PikPak_Enhancement_Master)。
+- MediaMP：[open-ani/mediamp](https://github.com/open-ani/mediamp)。
+- Android 播放器包含以 GPLv3 构建的 mpv 与 FFmpeg；保留第三方组件许可证和对应源码、构建来源信息。

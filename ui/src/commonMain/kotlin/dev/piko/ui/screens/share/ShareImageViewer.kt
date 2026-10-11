@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ fun ShareImageViewer(
     images: List<FileStat>,
     initialIndex: Int,
     onDismiss: () -> Unit,
+    onOpenOriginal: (FileStat) -> Unit,
 ) {
     if (images.isEmpty()) return
     var controlsVisible by remember { mutableStateOf(true) }
@@ -70,7 +72,9 @@ fun ShareImageViewer(
                                 },
                         )
                     } else {
-                        Text("没有可用的预览地址", color = Color.White)
+                        TextButton(onClick = { onOpenOriginal(file) }) {
+                            Text("预览图不可用，点击加载原图", color = Color.White)
+                        }
                     }
                 }
             }
@@ -85,7 +89,12 @@ fun ShareImageViewer(
                     Text(
                         images[pager.currentPage].name + "  (" + (pager.currentPage + 1) + "/" + images.size + ")",
                         color = Color.White,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
                     )
+                    TextButton(onClick = { onOpenOriginal(images[pager.currentPage]) }) {
+                        Text("原图", color = Color.White)
+                    }
                 }
             }
         }

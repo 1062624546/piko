@@ -32,6 +32,7 @@ fun ShareBrowserScreen(
     session: ShareBrowserSession,
     onBackHome: () -> Unit,
     onVideo: (FileStat) -> Unit,
+    onImage: (FileStat) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val downloadManager = LocalPikoServices.current.downloadManager
@@ -41,11 +42,12 @@ fun ShareBrowserScreen(
     var picking by remember { mutableStateOf(false) }
     var historyMode by remember { mutableStateOf(false) }
     var preparing by remember { mutableStateOf(false) }
-    var imageNotice by remember { mutableStateOf<String?>(null) }
+    var previewImage by remember { mutableStateOf<FileStat?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
 
     fun back() {
         when {
+            previewImage != null -> previewImage = null
             historyMode -> historyMode = false
             selecting -> { selecting = false; state?.selectedIds?.clear() }
             state != null && state.path.isNotEmpty() -> state.goTo(state.path.size - 1)
@@ -134,7 +136,7 @@ fun ShareBrowserScreen(
                                                 preparing = false
                                             }
                                         }
-                                        file.isPreviewableImage() -> imageNotice = "图片原图接口尚未接通，暂时请转存后查看：" + file.name
+                                        file.isPreviewableImage() -> previewImage = file
                                         else -> { selecting = true; state.toggle(file) }
                                     }
                                 }
@@ -176,10 +178,24 @@ fun ShareBrowserScreen(
         onDismiss = { picking = false },
         onConfirm = { id, name -> picking = false; state.save(PikoPathBreadcrumb(id, name)) },
     )
-    if (imageNotice != null) AlertDialog(
-        onDismissRequest = { imageNotice = null },
-        title = { Text("图片预览") },
-        text = { Text(imageNotice.orEmpty()) },
-        confirmButton = { TextButton(onClick = { imageNotice = null }) { Text("关闭") } },
-    )
+    previewImage?.let { file ->
+        val images = state?.entries.orEmpty()
+            .filter { it.isPreviewableImage() }
+            .sortedWith(compareBy(NaturalOrder) { it.name })
+        ShareImageViewer(
+            images = images,
+            initialIndex = images.indexOfFirst { it.id == file.id }.coerceAtLeast(0),
+            onDismiss = { previewImage = null },
+            onOpenOriginal = { image ->
+                previewImage = null
+                preparing = true
+                scope.launch {
+                    session.prepareVideo(image)
+                        .onSuccess { onImage(image.copy(id = it)) }
+                        .onFailure { notice = "加载图片原图失败：" + it.message }
+                    preparing = false
+                }
+            },
+        )
+    }
 }
