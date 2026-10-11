@@ -245,6 +245,8 @@ fun DriveScreen(
     scrollToTopRequests: Int = 0,
     /** 下载或离线任务已提交，切到传输页看进度。上传由主界面直接订阅调度器，不经这里。 */
     onOpenTransfers: () -> Unit = {},
+    /** Mobile add-link entry moved to the dedicated Share tab; desktop stays unchanged. */
+    showAddLinkAction: Boolean = true,
     /**
      * 信息流开着没有，以及视图切换里信息流一项的回调，为 null 时不给这一项。信息流在哪里呈现、
      * 播哪个文件夹由主界面决定，网盘页只管开关。
@@ -1137,7 +1139,7 @@ fun DriveScreen(
             }, group = ActionGroup.Create))
             add(SheetAction(Icons.Outlined.UploadFile, "上传文件", { pickFiles() }, group = ActionGroup.Create))
             add(SheetAction(Icons.Outlined.DriveFolderUpload, "上传文件夹", { pickFolder() }, group = ActionGroup.Create))
-            add(SheetAction(Icons.Outlined.Bolt, "添加链接", ::openAddLink, group = ActionGroup.Create))
+            if (showAddLinkAction) add(SheetAction(Icons.Outlined.Bolt, "添加链接", ::openAddLink, group = ActionGroup.Create))
         }
         add(SheetAction(Icons.Outlined.SelectAll, "全选", { state.toggleSelectAll() }, group = ActionGroup.Select))
         addAll(libraryPageActions(libraryView, state.files.isEmpty(), { libraryConfirm = it }, { state.files.map { it.id } }))
@@ -1400,7 +1402,7 @@ fun DriveScreen(
                     feedBlockedReason = feedBlockedReason,
                 )
             },
-            primaryAction = placePrimaryAction ?: if (commands.addLink) {
+            primaryAction = placePrimaryAction ?: if (showAddLinkAction && commands.addLink) {
                 SheetAction(Icons.Outlined.Bolt, "添加链接", ::openAddLink, group = ActionGroup.Refresh, pending = instantSession.hasCollapsedWork)
             } else {
                 null
@@ -1562,7 +1564,7 @@ fun DriveScreen(
     val discardAddLink = rememberDiscardAddLink(instantSession)
     val taskSheet: TaskSheetModel? = when {
         twoPane -> null
-        instantState != null -> TaskSheetModel(
+        instantState != null && showAddLinkAction -> TaskSheetModel(
             key = instantState,
             expanded = instantSession.isSheetOpen,
             // 收起时什么都没粘过的直接结束，见 InstantSession.collapse
@@ -1763,7 +1765,7 @@ fun DriveScreen(
                     // （清空回收站、选中建议移走的）在时就是它，否则是「+」菜单。曾两样依次画在同一个槽位里，查重页上「+」压住了扩展 FAB
                     if (placePrimaryAction != null && !pathInTopBar) {
                         PrimaryActionFab(placePrimaryAction)
-                    } else if (!state.isSelectionMode && !pathInTopBar && (commands.addLink || commands.create)) {
+                    } else if (!state.isSelectionMode && !pathInTopBar && ((showAddLinkAction && commands.addLink) || commands.create)) {
                         // 宽窗口的新建与上传在命令栏的「新建」里。菜单里摆什么与命令栏同一份规则（commands），
                         // 一项也没有时整个按钮不出现。FAB 只管往这里加东西，查找重复这类整理位置的命令在列表页眉的菜单里：
                         // FAB 菜单至多 6 项（M3），再有位置命令也不会挤进来
@@ -1786,7 +1788,7 @@ fun DriveScreen(
                                 }
                             },
                         ) {
-                            if (commands.addLink) {
+                            if (showAddLinkAction && commands.addLink) {
                                 FloatingActionButtonMenuItem(
                                     onClick = {
                                         isFabMenuExpanded = false

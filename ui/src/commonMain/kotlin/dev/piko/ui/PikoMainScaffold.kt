@@ -117,6 +117,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import dev.piko.ui.screens.instant.CollapseAddLinkLabel
 import dev.piko.ui.screens.instant.DiscardAddLinkButton
+import dev.piko.ui.screens.share.ShareHomeScreen
 import dev.piko.ui.screens.share.ShareBrowserScreen
 import dev.piko.ui.screens.instant.DockedAddLink
 import dev.piko.ui.screens.instant.FloatingAddLinkSheet
@@ -356,13 +357,14 @@ fun PikoMainScaffold(
         backStack.add(screen)
     }
 
-    // 监听外部传入的磁力链接，自动切到文件页并关闭压栈页
+    // External magnet links now open in the Share tab's existing instant-save workbench.
     val pendingMagnet by services.instantMagnetRepository.pendingMagnetFlow.collectAsStateWithLifecycle()
     LaunchedEffect(pendingMagnet) {
-        if (pendingMagnet != null) {
-            currentTab = MainTab.FILES
-            resetToHome()
-        }
+        val incoming = pendingMagnet ?: return@LaunchedEffect
+        services.instantMagnetRepository.clearPendingMagnet()
+        currentTab = MainTab.SHARE
+        resetToHome()
+        services.instantSession.start(incoming)
     }
 
     val openDriveRequested by services.driveRepository.openDriveRequested.collectAsStateWithLifecycle()
@@ -562,6 +564,7 @@ fun PikoMainScaffold(
         if (instantSession.isSheetOpen && url != null &&
             shareIdFromUrl(url) == shareBrowser.activeShareId) {
             instantSession.collapse()
+            currentTab = MainTab.SHARE
             if (backStack.lastOrNull() != Screen.ShareBrowser) backStack.add(Screen.ShareBrowser)
         }
     }
@@ -572,6 +575,7 @@ fun PikoMainScaffold(
         val id = shareIdFromUrl(url) ?: return@LaunchedEffect
         shareBrowser.open(id, InstantSheetState.findSharePassCode(raw).orEmpty())
         instantSession.collapse()
+        currentTab = MainTab.SHARE
         if (backStack.lastOrNull() != Screen.ShareBrowser) backStack.add(Screen.ShareBrowser)
     }
     val addLinkDocked = panelFits && instantSession.state != null && instantSession.isSheetOpen
@@ -820,7 +824,7 @@ fun PikoMainScaffold(
             when (tab) {
                 MainTab.FILES -> filesScrollToTop++
                 MainTab.TRANSFERS -> transfersScrollToTop++
-                MainTab.SETTINGS -> Unit
+                MainTab.SHARE, MainTab.SETTINGS -> Unit
             }
         }
         currentTab = tab
@@ -849,7 +853,8 @@ fun PikoMainScaffold(
         return listOfNotNull(
             PaletteItem("文件", Icons.Outlined.Folder, "前往", detail = label("1"), keywords = "files drive") { currentTab = MainTab.FILES; resetToHome() },
             PaletteItem("传输", Icons.Outlined.SyncAlt, "前往", detail = label("2"), keywords = "transfers downloads uploads") { openTransfers() },
-            if (desktop) null else PaletteItem("我的", Icons.Outlined.Person, "前往", detail = label("3"), keywords = "profile me") { currentTab = MainTab.SETTINGS; resetToHome() },
+            PaletteItem("分享", Icons.Outlined.Share, "前往", detail = label("3"), keywords = "share links history 分享") { currentTab = MainTab.SHARE; resetToHome() },
+            if (desktop) null else PaletteItem("我的", Icons.Outlined.Person, "前往", detail = label("4"), keywords = "profile me") { currentTab = MainTab.SETTINGS; resetToHome() },
         )
     }
 
@@ -884,7 +889,8 @@ fun PikoMainScaffold(
         libraryDestination(DriveLibrary.RECENT, "recent added uploads 新增"),
         libraryDestination(DriveLibrary.HISTORY, "history"),
         PaletteItem("浏览过的分享", Icons.Outlined.Share, "页面", keywords = "share history 分享历史") {
-            backStack.add(Screen.ShareBrowser)
+            currentTab = MainTab.SHARE
+            resetToHome()
         },
         PaletteItem("我的分享", Icons.Outlined.Share, "页面", keywords = "shares") { openPage(Screen.MyShares) },
         libraryDestination(DriveLibrary.TRASH, "trash bin"),
@@ -911,6 +917,7 @@ fun PikoMainScaffold(
                             onNavigateToVideoPlayer = { file, playlist -> playVideo(file, playlist) },
                             scrollToTopRequests = filesScrollToTop,
                             onOpenTransfers = ::openTransfers,
+                            showAddLinkAction = desktop,
                             // 挂起时开关显示为关着，按下即继续刷
                             feedShown = feedShown && !feedSuspended,
                             onFeedShownChange = { shown ->
@@ -933,10 +940,38 @@ fun PikoMainScaffold(
                         TransfersScreen(
                             scrollToTopRequests = transfersScrollToTop,
                             onNavigateToInstant = {
-                                currentTab = MainTab.FILES
+                                currentTab = MainTab.SHARE
                             },
                             onOpenCloudFile = { fileId, _ -> revealInDrive(fileId) },
                             onNavigateToVideoPlayer = ::playLocal,
+                        )
+                    }
+                    MainTab.SHARE -> {
+                        ShareHomeScreen(
+                            session = shareBrowser,
+                            instantState = instantSession.state.takeIf { instantSession.isSheetOpen },
+                            onOpenShare = { raw ->
+                                val shareUrl = InstantSheetState.findShareLink(raw)
+                                val shareId = shareUrl?.let(::shareIdFromUrl)
+                                if (shareId != null) {
+                                    instantSession.collapse()
+                                    shareBrowser.open(shareId, InstantSheetState.findSharePassCode(raw).orEmpty())
+                                    resetToHome()
+                                    backStack.add(Screen.ShareBrowser)
+                                }
+                            },
+                            onOpenHistory = { id ->
+                                instantSession.collapse()
+                                shareBrowser.open(id)
+                                resetToHome()
+                                backStack.add(Screen.ShareBrowser)
+                            },
+                            onAddOtherLink = { raw -> instantSession.start(raw) },
+                            onCloseInstant = { instantSession.collapse() },
+                            onPreviewInstant = { fileId, fileName ->
+                                instantSession.collapse()
+                                playVideo(FileStat(id = fileId, name = fileName), emptyList())
+                            },
                         )
                     }
                     MainTab.SETTINGS -> {
@@ -1043,7 +1078,7 @@ fun PikoMainScaffold(
         addAll(contributed)
         add(PaletteItem("添加链接", Icons.Outlined.Bolt, "操作", keywords = "magnet link offline 磁力 离线") {
             taskSlot.claim("添加链接", "添加链接", TaskSlot.Task.ADD_LINK) {
-                currentTab = MainTab.FILES
+                currentTab = MainTab.SHARE
                 resetToHome()
                 services.instantSession.run { if (state != null) reopen() else start() }
             }
@@ -1137,7 +1172,8 @@ fun PikoMainScaffold(
                     val tab = when (event.key) {
                         Key.One -> MainTab.FILES
                         Key.Two -> MainTab.TRANSFERS
-                        Key.Three -> if (desktop) return@onKeyEvent false else MainTab.SETTINGS
+                        Key.Three -> MainTab.SHARE
+                        Key.Four -> if (desktop) return@onKeyEvent false else MainTab.SETTINGS
                         else -> return@onKeyEvent false
                     }
                     currentTab = tab
@@ -1357,6 +1393,7 @@ private fun MainTab.icon(selected: Boolean) = when (this) {
     MainTab.FILES -> if (selected) Icons.Filled.Folder else Icons.Outlined.Folder
     // SyncAlt 的实心与描边长得一样，选中看不出变化；这一款描边是空心的圆，选中时填实
     MainTab.TRANSFERS -> if (selected) Icons.Filled.SwapVerticalCircle else Icons.Outlined.SwapVerticalCircle
+    MainTab.SHARE -> Icons.Outlined.Share
     MainTab.SETTINGS -> if (selected) Icons.Filled.Person else Icons.Outlined.Person
 }
 
@@ -1486,7 +1523,7 @@ private fun MainSidebar(
  */
 @Composable
 private fun MainTabSwitch(currentTab: MainTab?, onTabClick: (MainTab) -> Unit, activity: TransferActivity, collapsed: Boolean) {
-    val tabs = listOf(MainTab.FILES, MainTab.TRANSFERS)
+    val tabs = listOf(MainTab.FILES, MainTab.TRANSFERS, MainTab.SHARE)
     val snail by LocalPikoServices.current.preferences.snailModeFlow.collectAsStateWithLifecycle(initialValue = SnailMode())
     if (collapsed) {
         tabs.forEach { tab ->

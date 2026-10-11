@@ -13,6 +13,7 @@ fun FilesScreen(
     /** 见 DriveScreen 的同名参数。 */
     scrollToTopRequests: Int = 0,
     onOpenTransfers: () -> Unit = {},
+    showAddLinkAction: Boolean = true,
     /** 见 DriveScreen 的同名参数。 */
     feedShown: Boolean = false,
     onFeedShownChange: ((Boolean) -> Unit)? = null,
@@ -38,6 +39,7 @@ fun FilesScreen(
         onNavigateToVideoPlayer = onNavigateToVideoPlayer,
         scrollToTopRequests = scrollToTopRequests,
         onOpenTransfers = onOpenTransfers,
+        showAddLinkAction = showAddLinkAction,
         feedShown = feedShown,
         onFeedShownChange = onFeedShownChange,
         feedStashed = feedStashed,

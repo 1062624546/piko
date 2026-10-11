@@ -60,5 +60,6 @@ sealed interface Screen : NavKey {
 enum class MainTab(val title: String) {
     FILES("文件"),
     TRANSFERS("传输"),
+    SHARE("分享"),
     SETTINGS("我的"),
 }
