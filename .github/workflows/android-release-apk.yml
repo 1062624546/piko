@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/share-browser-private
+      - main
     paths:
       - "app/**"
       - "shared/**"
@@ -14,7 +15,7 @@ on:
       - ".github/workflows/android-release-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-release-apk-feature
@@ -68,3 +69,18 @@ jobs:
           path: dist/*
           retention-days: 14
           if-no-files-found: error
+
+      - name: Publish installable Piko 1.3 APK on main
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A GitHub Release offers a direct .apk download, unlike an Actions artifact ZIP.
+          if gh release view v1.3.0 >/dev/null 2>&1; then
+            gh release upload v1.3.0 dist/piko-1.3.0-universal.apk --clobber
+          else
+            gh release create v1.3.0 dist/piko-1.3.0-universal.apk \
+              --target "$GITHUB_SHA" \
+              --title "Piko 1.3" \
+              --notes "安卓正式签名版 1.3：底部导航新增分享页面，支持输入分享链接、查看并恢复浏览历史。"
+          fi

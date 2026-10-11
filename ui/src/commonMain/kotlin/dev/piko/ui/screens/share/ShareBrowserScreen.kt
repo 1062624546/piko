@@ -58,14 +58,14 @@ fun ShareBrowserScreen(
     val startIndex = if (remembered?.path?.lastOrNull()?.id.orEmpty() == folderId) remembered?.scrollIndex ?: 0 else 0
     val scroll = key(folderId) { rememberLazyListState(initialFirstVisibleItemIndex = startIndex) }
     LaunchedEffect(folderId) { query = ""; selecting = false }
-    LaunchedEffect(state, folderId, scroll) {
-        if (state == null) return@LaunchedEffect
+    LaunchedEffect(state, folderId, scroll, state?.isLoading) {
+        if (state == null || state.isLoading) return@LaunchedEffect
         snapshotFlow { scroll.firstVisibleItemIndex }.collect { index ->
             session.visited(state.info?.title.orEmpty(), state.path.toList(), index)
         }
     }
-    LaunchedEffect(state?.path?.toList(), state?.info?.title) {
-        if (state != null) session.visited(state.info?.title.orEmpty(), state.path.toList(), scroll.firstVisibleItemIndex)
+    LaunchedEffect(state?.path?.toList(), state?.info?.title, state?.isLoading) {
+        if (state != null && !state.isLoading) session.visited(state.info?.title.orEmpty(), state.path.toList(), scroll.firstVisibleItemIndex)
     }
     val shown = state?.entries.orEmpty()
         .filter { it.name.contains(query, ignoreCase = true) }
