@@ -220,7 +220,7 @@ class GithubReleaseClient(
     companion object {
         /**
          * 取最新版本的来源，依次尝试：
-         * 1. 独立的公开更新仓库 1062624546/piko-updates，私有源码仓库不对客户端暴露。
+         * 1. 本 Android 修改版的公开仓库 1062624546/piko。
          *    GitHub API。附件带 digest，正文里有更新日志。匿名调用按出口 IP 每小时 60 次，走代理的用户
          *    共用出口，常被限流回 403。
          * 2. 最新 Release 的附件 release.json（release.yml 生成，与 API 同一个形状）。经 github.com 的下载地址取，
@@ -233,8 +233,8 @@ class GithubReleaseClient(
          * 它也取不到 Release 附件。
          */
         val LATEST_RELEASE_SOURCES = listOf(
-            "https://api.github.com/repos/1062624546/piko-updates/releases/latest",
-            "${GITHUB_PREFIX}1062624546/piko-updates/releases/latest/download/$RELEASE_MANIFEST",
+            "https://api.github.com/repos/1062624546/piko/releases/latest",
+            "${GITHUB_PREFIX}1062624546/piko/releases/latest/download/$RELEASE_MANIFEST",
         )
 
         /** release.yml 为每个版本附上的 Release 信息，与 GitHub API 的 releases/latest 同形。 */

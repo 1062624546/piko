@@ -3,16 +3,12 @@ name: Android Debug APK
 on:
   workflow_dispatch:
   pull_request:
-  push:
-    branches:
-      - main
-      - feature/share-browser-private
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-debug
+  group: android-debug-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

@@ -15,7 +15,7 @@ on:
       - ".github/workflows/android-release-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-release-apk-${{ github.ref }}
@@ -49,6 +49,8 @@ jobs:
           test -n "$ANDROID_KEY_PASSWORD"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           chmod 600 "$ANDROID_KEYSTORE_PATH"
+      - name: Run Android unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
       - name: Build signed universal release APK
         run: ./gradlew :app:assembleRelease -Ppiko.enableAbiSplits=false --no-daemon --stacktrace
       - name: Verify APK signature
@@ -76,17 +78,13 @@ jobs:
           if-no-files-found: error
 
 
-      - name: Publish signed APK to public update repository
+      - name: Publish signed APK and update metadata
         if: github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ secrets.PIKO_UPDATES_TOKEN }}
-          UPDATE_REPOSITORY: 1062624546/piko-updates
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo "::warning::PIKO_UPDATES_TOKEN is not configured. Signed APK stays in Actions artifacts; no online update is published."
-            exit 0
-          fi
           visibility="$(gh api "repos/$UPDATE_REPOSITORY" --jq .visibility)"
           if [[ "$visibility" != "public" ]]; then
             echo "::error::$UPDATE_REPOSITORY must be public so Android can check releases without a token."
@@ -100,9 +98,9 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$tag" --repo "$UPDATE_REPOSITORY" --target main --draft \
+            gh release create "$tag" --repo "$UPDATE_REPOSITORY" --target "$GITHUB_SHA" --draft \
               --title "Piko $PIKO_VERSION_NAME" \
-              --notes "修复分享图片预览，移除原社区入口，支持独立的在线更新渠道。"
+              --notes "修复分享图片预览，移除原社区入口，仅维护 Android；在线更新接入本仓库。"
           fi
           gh release upload "$tag" "dist/piko-$PIKO_VERSION_NAME-universal.apk" \
             "dist/piko-$PIKO_VERSION_NAME-source.tar.gz" --repo "$UPDATE_REPOSITORY" --clobber
