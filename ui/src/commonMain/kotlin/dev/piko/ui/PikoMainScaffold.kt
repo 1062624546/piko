@@ -556,6 +556,15 @@ fun PikoMainScaffold(
     val instantSession = services.instantSession
     val shareBrowser = services.shareBrowser
     val shareInput = instantSession.state?.input
+    LaunchedEffect(instantSession.isSheetOpen) {
+        val raw = instantSession.state?.input.orEmpty()
+        val url = InstantSheetState.findShareLink(raw)
+        if (instantSession.isSheetOpen && url != null &&
+            shareIdFromUrl(url) == shareBrowser.activeShareId) {
+            instantSession.collapse()
+            if (backStack.lastOrNull() != Screen.ShareBrowser) backStack.add(Screen.ShareBrowser)
+        }
+    }
     LaunchedEffect(shareInput) {
         val raw = shareInput ?: return@LaunchedEffect
         val url = InstantSheetState.findShareLink(raw) ?: return@LaunchedEffect

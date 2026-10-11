@@ -462,6 +462,13 @@ class PlayerScreenState(
         reload()
     }
 
+    /** A temporary share episode is intentionally not persisted to playback history. */
+    fun playEphemeralVideo(nextFileId: String, nextName: String) {
+        if (!ephemeralSharePreview) return
+        sharePlaybackCompleted = false
+        switchTo(nextFileId, nextName)
+    }
+
     /** 点到正在放的那集只收起面板：它若是本地副本，按 fileId 重开会丢掉本地路径的提示并从头取流。 */
     fun playEntry(entry: PlaylistEntry) {
         if (entry.fileId != fileId) switchTo(entry.fileId, entry.name)

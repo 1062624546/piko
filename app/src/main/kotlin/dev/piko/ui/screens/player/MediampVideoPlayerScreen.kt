@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -103,10 +106,23 @@ fun MediampVideoPlayerScreen(
     DisposableEffect(state) {
         onDispose { state.release() }
     }
+    fun changeShareEpisode(offset: Int) {
+        if (finishedCleanup != "临时视频已清理") return
+        val next = app.services.shareBrowser.neighborVideo(offset) ?: return
+        finishedCleanup = null
+        scope.launch {
+            app.services.shareBrowser.prepareVideo(next).onSuccess { id ->
+                state.playEphemeralVideo(id, next.name)
+            }.onFailure {
+                finishedCleanup = "下一集准备失败：" + it.message
+            }
+        }
+    }
     LaunchedEffect(state.sharePlaybackCompleted) {
         if (sharePreview && state.sharePlaybackCompleted) {
             val deleted = app.services.shareBrowser.releasePreview()
             finishedCleanup = if (deleted.isSuccess) "临时视频已清理" else "临时视频清理失败，可重试"
+            if (deleted.isSuccess && app.services.shareBrowser.autoContinue) changeShareEpisode(1)
         }
     }
     DisposableEffect(backend) {
@@ -214,6 +230,19 @@ fun MediampVideoPlayerScreen(
                 text = { Text(finishedCleanup ?: "正在清理临时视频…") },
                 confirmButton = { TextButton(onClick = leave) { Text("返回分享目录") } },
                 dismissButton = {
+                    Column {
+                        Row {
+                            TextButton(onClick = { changeShareEpisode(-1) }, enabled = finishedCleanup == "临时视频已清理" && app.services.shareBrowser.neighborVideo(-1) != null) { Text("上一集") }
+                            TextButton(onClick = { changeShareEpisode(1) }, enabled = finishedCleanup == "临时视频已清理" && app.services.shareBrowser.neighborVideo(1) != null) { Text("下一集") }
+                        }
+                        Row {
+                            Text("自动连播")
+                            Switch(
+                                checked = app.services.shareBrowser.autoContinue,
+                                onCheckedChange = { app.services.shareBrowser.autoContinue = it },
+                            )
+                        }
+                    }
                     if (finishedCleanup?.contains("失败") == true) {
                         TextButton(onClick = {
                             finishedCleanup = null

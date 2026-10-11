@@ -20,6 +20,8 @@ import dev.piko.data.repository.isPreviewableImage
 import dev.piko.shared.data.PikoPathBreadcrumb
 import dev.piko.shared.state.ShareBrowserSession
 import dev.piko.ui.components.FolderPickerDialog
+import dev.piko.ui.LocalPikoServices
+import io.github.nihildigit.pikpak.ResolvedFile
 import io.github.nihildigit.pikpak.FileStat
 import kotlinx.coroutines.launch
 
@@ -32,6 +34,7 @@ fun ShareBrowserScreen(
     onVideo: (FileStat) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val downloadManager = LocalPikoServices.current.downloadManager
     val state = session.browser
     var query by remember { mutableStateOf("") }
     var selecting by remember { mutableStateOf(false) }
@@ -148,6 +151,16 @@ fun ShareBrowserScreen(
                                 }, null
                             )
                             Text(file.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            if (!file.isFolder && file.hash.isNotBlank()) {
+                                IconButton(onClick = {
+                                    downloadManager.enqueueResolved(
+                                        listOf(ResolvedFile(file.name, file.sizeBytes, file.hash)), ""
+                                    )
+                                    notice = "已加入下载任务：" + file.name
+                                }) {
+                                    Icon(Icons.Outlined.CloudDownload, "下载到手机")
+                                }
+                            }
                         }
                     }
                 }

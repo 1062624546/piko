@@ -7,6 +7,8 @@ import dev.piko.shared.data.PikoCacheStore
 import dev.piko.shared.data.PikoDriveRepository
 import dev.piko.shared.data.PikoPathBreadcrumb
 import dev.piko.shared.data.PreviewTempFolder
+import dev.piko.data.repository.NaturalOrder
+import dev.piko.data.repository.isPlayableVideo
 import io.github.nihildigit.pikpak.FileStat
 import io.github.nihildigit.pikpak.ResolvedFile
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +44,9 @@ class ShareBrowserSession(
         private set
     var browser by mutableStateOf<ShareSaveState?>(null)
         private set
+    var previewOriginalId by mutableStateOf<String?>(null)
+        private set
+    var autoContinue by mutableStateOf(false)
     var previewFileId by mutableStateOf<String?>(null)
         private set
     var previewError by mutableStateOf<String?>(null)
@@ -136,10 +141,20 @@ class ShareBrowserSession(
         if (cleared.isFailure) return Result.failure(cleared.exceptionOrNull()!!)
         val prepared = previewFolder.put(ResolvedFile(file.name, file.sizeBytes, file.hash))
         prepared.onSuccess {
+            previewOriginalId = file.id
             previewFileId = it
             previewError = null
         }.onFailure { previewError = "无法预览：${it.message}" }
         return prepared
+    }
+
+    /** Playback order always follows natural file names in the current shared folder. */
+    fun neighborVideo(offset: Int): FileStat? {
+        val source = previewOriginalId ?: return null
+        val playable = browser?.entries.orEmpty().filter { it.isPlayableVideo() && it.hash.isNotBlank() }
+            .sortedWith(compareBy(NaturalOrder) { it.name })
+        val index = playable.indexOfFirst { it.id == source }
+        return if (index < 0) null else playable.getOrNull(index + offset)
     }
 
     /** Delete only the exact file created for this preview, never the user's stored videos. */
@@ -162,7 +177,10 @@ class ShareBrowserSession(
     }
 
     fun releasePreviewInBackground() {
-        scope.launch { releasePreview() }
+        scope.launch {
+            kotlinx.coroutines.delay(500L)
+            releasePreview()
+        }
     }
 
     fun clearPreviewError() {
