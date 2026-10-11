@@ -106,7 +106,9 @@ jobs:
             "dist/piko-$PIKO_VERSION_NAME-source.tar.gz" --repo "$UPDATE_REPOSITORY" --clobber
           # GitHub computes release-asset SHA-256 on upload. It must be present
           # in both API metadata and the fallback release.json for secure installs.
-          gh api "repos/$UPDATE_REPOSITORY/releases/tags/$tag" \
+          release_id="$(gh api "repos/$UPDATE_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$tag\") | .id")"
+          test -n "$release_id"
+          gh api "repos/$UPDATE_REPOSITORY/releases/$release_id" \
             | jq '{tag_name,html_url,body,draft:false,prerelease:false,assets: [.assets[] | select(.name | endswith(".apk")) | {name,size,browser_download_url,digest}]}' \
             > dist/release.json
           jq -e '.assets | length > 0 and all(.[]; (.digest | type == "string" and startswith("sha256:")))' \
