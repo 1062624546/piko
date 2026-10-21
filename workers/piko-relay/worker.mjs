@@ -1,4 +1,4 @@
-import { tunnel } from './tunnel.mjs';
+import { routeTunnel } from './tunnel.mjs';
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
 const PROTOCOL = 'piko-relay-v1';
 const HOP_HEADERS = new Set(['host', 'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
@@ -70,7 +70,7 @@ async function fetchWithHeaderTimeout(url, init, timeoutMs) {
 export default {
   async fetch(request, env, ctx) {
     const incoming = new URL(request.url);
-    if (incoming.pathname === '/v2/tunnel') return tunnel(request, env, ctx, (r, e, c) => this.fetch(r, e, c));
+    if (incoming.pathname === '/v2/tunnel') return routeTunnel(request, env);
     if (incoming.pathname === '/health' && ['GET', 'HEAD'].includes(request.method))
       return reply(200, 'Piko relay is running');
     if (!['/v1/check', '/v1/relay'].includes(incoming.pathname)) return reply(404, 'Not found');

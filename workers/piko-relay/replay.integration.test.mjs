@@ -13,16 +13,18 @@ test("SQLite Durable Object atomically accepts one concurrent claim across repea
             {
               type: "ESModule",
               path: "test.mjs",
-              contents: `export {PikoReplayGuard} from './replay.mjs'; export default {async fetch(request,env){ const nonce=new URL(request.url).searchParams.get('nonce');const accepted=await env.REPLAY_GUARD.getByName('test-owner').claim(nonce,Date.now()+300000);return Response.json({accepted});}};`,
+              contents: `export {PikoReplayGuard} from './replay.mjs'; export default {async fetch(request,env){const nonce=new URL(request.url).searchParams.get('nonce');return Response.json({accepted:await env.REPLAY_GUARD.getByName('test-owner').claim(nonce,Date.now()+300000)});}};`,
             },
-            {
-              type: "ESModule",
-              path: "replay.mjs",
-              contents: await readFile(
-                new URL("./replay.mjs", import.meta.url),
-                "utf8",
-              ),
-            },
+            ...(await Promise.all(
+              ["replay.mjs", "worker.mjs", "tunnel.mjs"].map(async (path) => ({
+                type: "ESModule",
+                path,
+                contents: await readFile(
+                  new URL("./" + path, import.meta.url),
+                  "utf8",
+                ),
+              })),
+            )),
           ],
           compatibilityDate: "2026-10-21",
           durableObjects: {

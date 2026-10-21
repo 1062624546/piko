@@ -294,3 +294,65 @@ export async function tunnel(request, env, ctx, forward) {
     });
   }
 }
+
+// Route opaque bytes at the edge; perform media crypto inside the per-token DO.
+export async function routeTunnel(request, env) {
+  let reader;
+  try {
+    if (
+      request.method !== "POST" ||
+      new URL(request.url).search ||
+      !request.body
+    )
+      throw new Error("Invalid tunnel");
+    reader = new Reader(request.body);
+    const prefix = await reader.read(MAGIC.length + 48);
+    if (hex(prefix.subarray(0, MAGIC.length)) !== hex(MAGIC))
+      throw new Error("Invalid protocol");
+    const id = prefix.subarray(MAGIC.length, MAGIC.length + 16);
+    const tokens = Object.values(JSON.parse(env.RELAY_TOKENS || "{}"));
+    if (tokens.length > 100) throw new Error("Invalid configuration");
+    let valid = false;
+    for (const token of tokens) {
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{24,256}$/.test(token))
+        continue;
+      const expected = await keyId(token);
+      let diff = 0;
+      for (let i = 0; i < 16; i++) diff |= expected[i] ^ id[i];
+      valid ||= diff === 0;
+    }
+    if (!valid) throw new Error("Unavailable");
+    let first = true;
+    const body = new ReadableStream({
+      pull: async (controller) => {
+        try {
+          if (first) {
+            first = false;
+            controller.enqueue(prefix);
+            return;
+          }
+          if (reader.pending.length) {
+            controller.enqueue(reader.pending);
+            reader.pending = new Uint8Array();
+            return;
+          }
+          const next = await reader.reader.read();
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
+        } catch (e) {
+          controller.error(e);
+        }
+      },
+      cancel: (reason) => reader.cancel(reason),
+    });
+    return await env.REPLAY_GUARD.getByName(hex(id)).fetch(
+      new Request(request, { body, duplex: "half" }),
+    );
+  } catch {
+    await reader?.cancel().catch(() => {});
+    return new Response("Tunnel unavailable", {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+}

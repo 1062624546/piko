@@ -1,3 +1,5 @@
+import { tunnel } from "./tunnel.mjs";
+import worker from "./worker.mjs";
 import { DurableObject } from "cloudflare:workers";
 /** Only random salts and expiry are stored, never business data. */
 export class PikoReplayGuard extends DurableObject {
@@ -6,6 +8,17 @@ export class PikoReplayGuard extends DurableObject {
     ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS seen (nonce TEXT PRIMARY KEY, expires INTEGER NOT NULL)",
     );
+  }
+  async fetch(request) {
+    const env = {
+      RELAY_TOKENS: this.env.RELAY_TOKENS,
+      REPLAY_GUARD: {
+        getByName: () => ({
+          claim: (nonce, expires) => this.claim(nonce, expires),
+        }),
+      },
+    };
+    return tunnel(request, env, this.ctx, (r, e, c) => worker.fetch(r, e, c));
   }
   async claim(nonce, expires) {
     if (

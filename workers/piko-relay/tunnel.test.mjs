@@ -173,3 +173,30 @@ test("fixed cross-language HKDF and GCM vector", async () => {
     "000000228cc4442a1db5f25b0efc928d3869b3f18e56af169ef1feee5c589a42f5e46f781546",
   );
 });
+
+test("edge router forwards only opaque bytes to a credential DO", async () => {
+  const { routeTunnel } = await import("./tunnel.mjs");
+  const p = await packet(bytes("private upload"));
+  let forwarded = 0;
+  const routedEnv = {
+    ...env,
+    REPLAY_GUARD: {
+      getByName: () => ({
+        fetch: async (req) => {
+          forwarded++;
+          assert.equal(new URL(req.url).pathname, "/v2/tunnel");
+          assert.equal(new URL(req.url).search, "");
+          assert.equal(req.headers.get("Authorization"), null);
+          assert.deepEqual(new Uint8Array(await req.arrayBuffer()), p.encoded);
+          return new Response("opaque-response");
+        },
+      }),
+    },
+  };
+  const r = await routeTunnel(request(p), routedEnv);
+  assert.equal(await r.text(), "opaque-response");
+  assert.equal(forwarded, 1);
+  p.encoded[6] ^= 1;
+  assert.equal((await routeTunnel(request(p), routedEnv)).status, 503);
+  assert.equal(forwarded, 1);
+});
