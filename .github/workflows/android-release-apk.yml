@@ -94,7 +94,12 @@ jobs:
           if gh release view "$tag" --repo "$UPDATE_REPOSITORY" >/dev/null 2>&1; then
             draft="$(gh release view "$tag" --repo "$UPDATE_REPOSITORY" --json isDraft --jq .isDraft)"
             if [[ "$draft" != "true" ]]; then
-              echo "Release $tag is already published; not replacing an existing APK with a different build."
+              # Repair metadata without replacing the published, signed APK.
+              gh api "repos/$UPDATE_REPOSITORY/releases/tags/$tag" \
+                | jq --arg repo "$UPDATE_REPOSITORY" --arg tag "$tag" '{tag_name,html_url,body,draft:false,prerelease:false,assets: [.assets[] | select(.name | endswith(".apk")) | {name,size,browser_download_url:("https://github.com/" + $repo + "/releases/download/" + $tag + "/" + .name),digest}]}' \
+                > dist/release.json
+              jq -e '.assets | length > 0 and all(.[]; (.digest | type == "string" and startswith("sha256:")))' dist/release.json >/dev/null
+              gh release upload "$tag" dist/release.json --repo "$UPDATE_REPOSITORY" --clobber
               exit 0
             fi
           else
@@ -109,7 +114,7 @@ jobs:
           release_id="$(gh api "repos/$UPDATE_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$tag\") | .id")"
           test -n "$release_id"
           gh api "repos/$UPDATE_REPOSITORY/releases/$release_id" \
-            | jq '{tag_name,html_url,body,draft:false,prerelease:false,assets: [.assets[] | select(.name | endswith(".apk")) | {name,size,browser_download_url,digest}]}' \
+            | jq --arg repo "$UPDATE_REPOSITORY" --arg tag "$tag" '{tag_name,html_url,body,draft:false,prerelease:false,assets: [.assets[] | select(.name | endswith(".apk")) | {name,size,browser_download_url:("https://github.com/" + $repo + "/releases/download/" + $tag + "/" + .name),digest}]}' \
             > dist/release.json
           jq -e '.assets | length > 0 and all(.[]; (.digest | type == "string" and startswith("sha256:")))' \
             dist/release.json >/dev/null
