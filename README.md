@@ -50,3 +50,7 @@ Debug APK 用于测试，不作为正式更新包。
 - 功能设计参考：[digbug82/PikPak_Enhancement_Master](https://github.com/digbug82/PikPak_Enhancement_Master)。
 - MediaMP：[open-ani/mediamp](https://github.com/open-ani/mediamp)。
 - Android 播放器包含以 GPLv3 构建的 mpv 与 FFmpeg；保留第三方组件许可证和对应源码、构建来源信息。
+
+### Piko 专用中继
+
+登录页和设置页的「网络代理」支持导入 Piko 中继链接、管理多个配置、测试连接和关闭代理。安卓访问凭证加密保存。配套 Cloudflare Worker 的部署、凭证生成和转发范围见 [中继说明](workers/piko-relay/README.md)。

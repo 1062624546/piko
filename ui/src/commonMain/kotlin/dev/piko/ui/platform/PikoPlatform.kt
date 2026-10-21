@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
  * expect/actual：实现要拿 Context、窗口与各自的播放后端，这些都是运行时对象，不是编译期的平台差异。
  */
 interface PikoPlatform {
+    /** 使用平台 HTTP 实现检查中继，避免界面依赖 JVM 网络类型。 */
+    suspend fun checkRelay(profile: dev.piko.shared.net.RelayProfile): String = "当前平台不支持连接测试"
+
     /** 关于页显示的版本号。 */
     val appVersion: String
 

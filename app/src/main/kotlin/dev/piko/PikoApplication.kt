@@ -28,6 +28,9 @@ import dev.piko.shared.log.LogLevel
 import dev.piko.shared.log.PikoLog
 import dev.piko.shared.media.FileClipCache
 import dev.piko.shared.media.PikoMediaRepository
+import dev.piko.shared.net.PikoRelayCredentialGuard
+import dev.piko.shared.net.PikoRelayInterceptor
+import dev.piko.shared.net.pikoRelayHttpClient
 import dev.piko.shared.net.PikoProxySelector
 import dev.piko.shared.state.InstantSession
 import dev.piko.shared.upload.PikoUploadCoordinator
@@ -78,7 +81,8 @@ class PikoApplication : Application(), SingletonImageLoader.Factory {
 
         sessionManager = SessionManager(this)
         installProxy()
-        val clientManager = PikoClientManager(AndroidPikoSessionStore(this), appScope)
+        val clientManager = PikoClientManager(AndroidPikoSessionStore(this), appScope,
+            networkClient = pikoRelayHttpClient(), networkCdnClient = pikoRelayHttpClient(media = true))
         val mediaRepository = PikoMediaRepository(
             clientManager,
             sessionManager,
@@ -151,6 +155,8 @@ class PikoApplication : Application(), SingletonImageLoader.Factory {
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(PikoRelayInterceptor(mediaClient = true))
+            .addNetworkInterceptor(PikoRelayCredentialGuard())
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .build()

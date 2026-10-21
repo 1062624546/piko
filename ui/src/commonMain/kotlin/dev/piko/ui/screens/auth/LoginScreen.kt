@@ -142,8 +142,8 @@ fun LoginScreen(
         ProxySettingsDialog(
             current = proxySetting,
             onSave = { setting ->
+                preferences.saveProxySetting(setting)
                 showProxyDialog = false
-                scope.launch { preferences.saveProxySetting(setting) }
             },
             onDismiss = { showProxyDialog = false },
         )

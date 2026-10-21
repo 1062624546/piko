@@ -79,7 +79,7 @@ class DesktopPikoPreferences(
     private val batchRename = MutableStateFlow(settings.get(KEY_BATCH_RENAME))
     private val vaultArchiveOptions = MutableStateFlow(settings.get(KEY_VAULT_ARCHIVE_OPTIONS))
     private val renameRegexTextMode = MutableStateFlow(settings.get(KEY_RENAME_REGEX_TEXT_MODE) == "true")
-    private val proxySetting = MutableStateFlow(ProxySetting.decode(settings.get(KEY_PROXY_SETTING)))
+    private val proxySetting = MutableStateFlow<ProxySetting?>(null)
     private val downloadPath = MutableStateFlow(
         settings.get(KEY_DOWNLOAD_DIR, settings.downloadDirectory.absolutePath),
     )
@@ -357,9 +357,25 @@ class DesktopPikoPreferences(
         renameRegexTextMode.value = enabled
     }
 
-    override val proxySettingFlow: Flow<ProxySetting> = proxySetting.asStateFlow()
+    override val proxySettingFlow: Flow<ProxySetting> = proxySetting.onStart {
+        if (proxySetting.value == null) {
+            val metadata = ProxySetting.decode(settings.get(KEY_PROXY_SETTING))
+            val restored = if (metadata.relays.isEmpty()) metadata else {
+                val raw = runCatching { withSecrets { secrets.read("piko-relay-settings")?.decodeToString() } }
+                    .onFailure { PikoLog.w(TAG, "中继凭证无法从系统保管处读出，请重新导入", it) }.getOrNull()
+                raw?.let(ProxySetting::decode) ?: metadata
+            }
+            proxySetting.compareAndSet(null, restored)
+        }
+    }.filterNotNull()
+
     override suspend fun saveProxySetting(setting: ProxySetting) {
-        settings.set(KEY_PROXY_SETTING, setting.encode())
+        if (setting.relays.isNotEmpty()) {
+            withSecrets { secrets.write("piko-relay-settings", setting.encode().encodeToByteArray()) }
+        } else if (proxySetting.value?.relays?.isNotEmpty() == true) {
+            withSecrets { secrets.delete("piko-relay-settings") }
+        }
+        settings.set(KEY_PROXY_SETTING, setting.copy(relays = setting.relays.map { it.copy(token = "") }).encode())
         proxySetting.value = setting
     }
 

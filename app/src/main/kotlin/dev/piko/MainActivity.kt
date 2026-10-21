@@ -34,6 +34,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import dev.piko.ui.adaptive.isHeightCompact
 import dev.piko.ui.screens.player.findActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import dev.piko.shared.net.RelayProfile
+import dev.piko.shared.net.ProxyMode
 import dev.piko.shared.state.InstantSheetState
 import dev.piko.shared.state.TorrentMagnet
 import dev.piko.shared.state.extractLinks
@@ -124,6 +127,12 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
+        val proxyLink = listOfNotNull(intent.dataString, intent.getStringExtra(Intent.EXTRA_TEXT))
+            .firstOrNull { it.trim().startsWith("piko://proxy") }
+        if (proxyLink != null) {
+            importProxyLink(proxyLink)
+            return
+        }
         if (intent.getBooleanExtra(EXTRA_OPEN_TRANSFERS, false)) {
             PikoApplication.instance.services.requestOpenTransfers()
             return
@@ -152,6 +161,31 @@ class MainActivity : ComponentActivity() {
             // 名为磁力，实际收的是添加链接面板的输入：面板自己分辨磁力、下载地址与分享链接
             PikoApplication.instance.instantMagnetRepository.onIncomingMagnet(link)
         }
+    }
+
+    private fun importProxyLink(link: String) {
+        val profile = runCatching { RelayProfile.importLink(link) }.getOrNull()
+        if (profile == null) {
+            Toast.makeText(this, "代理链接无效，请检查地址和访问凭证", Toast.LENGTH_LONG).show()
+            return
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("导入 Piko 中继")
+            .setMessage("${profile.name}\n${profile.endpoint}\n\n仅导入你信任的中继。启用后，PikPak 接口请求会经该服务转发。可在网络代理设置中关闭或删除。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("导入并启用") { _, _ ->
+                lifecycleScope.launch {
+                    try {
+                        val preferences = PikoApplication.instance.sessionManager
+                        val current = preferences.proxySettingFlow.first()
+                        preferences.saveProxySetting(current.copy(mode = ProxyMode.RELAY,
+                            relays = current.relays.filterNot { it.endpoint == profile.endpoint } + profile,
+                            selectedRelay = profile.endpoint))
+                        Toast.makeText(this@MainActivity, "已启用 Piko 中继", Toast.LENGTH_SHORT).show()
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                    catch (_: Exception) { Toast.makeText(this@MainActivity, "保存失败，请在网络代理设置中重试", Toast.LENGTH_LONG).show() }
+                }
+            }.show()
     }
 
     /** 打开的 .torrent 文件。按类型认而不按扩展名：content: URI 的路径多半不带文件名。 */

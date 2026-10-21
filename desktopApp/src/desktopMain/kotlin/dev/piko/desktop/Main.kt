@@ -50,6 +50,7 @@ import dev.piko.shared.log.LogLevel
 import dev.piko.shared.log.PikoLog
 import dev.piko.shared.media.FileClipCache
 import dev.piko.shared.media.PikoMediaRepository
+import dev.piko.shared.net.pikoRelayHttpClient
 import dev.piko.shared.net.PikoProxySelector
 import dev.piko.shared.upload.UploadTask
 import dev.piko.ui.PikoApp
@@ -460,7 +461,8 @@ internal fun bringToFront(window: java.awt.Frame) {
 private fun createServices(settings: DesktopSettingsStore, preferences: DesktopPikoPreferences): PikoServices {
     // 进程级作用域，与 Android 的 appScope 对应：下载与会话刷新不随某个窗口的组合结束
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val clientManager = PikoClientManager(desktopSessionStore(), appScope)
+    val clientManager = PikoClientManager(desktopSessionStore(), appScope,
+        networkClient = pikoRelayHttpClient(), networkCdnClient = pikoRelayHttpClient(media = true))
     val mediaRepository = PikoMediaRepository(
         clientManager,
         preferences,

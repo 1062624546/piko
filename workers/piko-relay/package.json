@@ -1,0 +1,16 @@
+{
+  "name": "piko-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test worker.test.mjs",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

@@ -78,6 +78,9 @@ class DesktopPikoPlatform(
     override val motionStyle: MotionStyle = MotionStyle.Standard
 
     // jpackage 启动器写进 -Djpackage.app-version；gradle run 时没有，显示为开发版
+    override suspend fun checkRelay(profile: dev.piko.shared.net.RelayProfile): String =
+        dev.piko.shared.net.checkPikoRelay(profile)
+
     override val appVersion: String = System.getProperty("jpackage.app-version") ?: "开发版"
 
     // Flatpak 里为 null：更新归 flatpak 管，自己也写不进 /app，界面据此不给检查更新的入口

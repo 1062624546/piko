@@ -43,6 +43,9 @@ kotlin {
             // 本机回环代理的服务端：只需 GET/HEAD 加 Range，原始 socket 足够
             implementation(libs.ktor.network)
         }
+        val jvmSharedMain by getting {
+            dependencies { implementation(libs.ktor.client.okhttp) }
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }

@@ -20,6 +20,8 @@ object PikoProxySelector : ProxySelector() {
     @Volatile
     private var setting = ProxySetting()
 
+    fun currentSetting(): ProxySetting = setting
+
     /** 装之前的默认选择器，跟随系统时交给它。桌面端要先打开 java.net.useSystemProxies 它才读系统设置。 */
     private var system: ProxySelector? = null
 
@@ -44,7 +46,7 @@ object PikoProxySelector : ProxySelector() {
         val current = setting
         return when (current.mode) {
             ProxyMode.SYSTEM -> system?.select(uri)?.takeIf { it.isNotEmpty() } ?: NO_PROXY
-            ProxyMode.NONE -> NO_PROXY
+            ProxyMode.NONE, ProxyMode.RELAY -> NO_PROXY
             ProxyMode.MANUAL -> if (current.isManualComplete) {
                 val type = if (current.protocol == ProxyProtocol.SOCKS) Proxy.Type.SOCKS else Proxy.Type.HTTP
                 // 不在这里解析主机名：交给连接时解析，代理地址写的是域名也不会在选路时阻塞

@@ -73,6 +73,9 @@ class AndroidPikoPlatform(
     updater: () -> AppUpdateService,
     override val motionScale: PikoMotionScale,
 ) : PikoPlatform {
+    override suspend fun checkRelay(profile: dev.piko.shared.net.RelayProfile): String =
+        dev.piko.shared.net.checkPikoRelay(profile)
+
     override val appVersion: String = BuildConfig.VERSION_NAME
 
     override val formFactor: FormFactor = FormFactor.Mobile

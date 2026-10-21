@@ -31,6 +31,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="piko" android:host="proxy" />
+            </intent-filter>
             <!-- 注册为磁力链接协议处理器 (magnet:) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

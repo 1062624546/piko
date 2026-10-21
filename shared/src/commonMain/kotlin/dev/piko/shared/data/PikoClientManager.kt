@@ -37,6 +37,8 @@ class PikoClientManager(
     private val sessionStore: PikoSessionStore,
     private val scope: CoroutineScope,
     private val httpClient: HttpClient? = null,
+    private val networkClient: HttpClient? = null,
+    private val networkCdnClient: HttpClient? = null,
 ) : PikoClientProvider {
     private val _currentClient = MutableStateFlow<PikPakClient?>(null)
     override val currentClient: StateFlow<PikPakClient?> = _currentClient.asStateFlow()
@@ -403,7 +405,8 @@ class PikoClientManager(
             account = account,
             passwordSupplier = supplier,
             sessionStore = sessionStore,
-            httpClient = httpClient,
+            httpClient = httpClient ?: networkClient,
+            cdnHttpClient = if (httpClient != null) httpClient else networkCdnClient,
             connectionBudget = CONNECTION_BUDGET,
             accountConnectionBudget = ACCOUNT_CONNECTION_BUDGET,
             // 每个账号共用请求预算，批量工作和交互请求合计保持每秒 16 次；实测依据见 development/archive.md。

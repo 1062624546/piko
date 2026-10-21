@@ -552,8 +552,8 @@ fun SettingsScreen(
         ProxySettingsDialog(
             current = proxySetting,
             onSave = { setting ->
+                sessionManager.saveProxySetting(setting)
                 showProxyDialog = false
-                scope.launch { sessionManager.saveProxySetting(setting) }
             },
             onDismiss = { showProxyDialog = false },
         )

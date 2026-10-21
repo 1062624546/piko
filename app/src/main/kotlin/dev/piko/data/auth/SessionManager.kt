@@ -531,11 +531,19 @@ class SessionManager(private val context: Context) : PikoUserPreferences {
     }
 
     override val proxySettingFlow: Flow<ProxySetting> =
-        preference { ProxySetting.decode(it[PreferencesKeys.PROXY_SETTING].orEmpty()) }
+        preference {
+            val stored = it[PreferencesKeys.PROXY_SETTING].orEmpty()
+            if (CredentialCipher.isEncrypted(stored)) {
+                CredentialCipher.decrypt(stored)?.let(ProxySetting::decode)
+                    ?: ProxySetting(mode = dev.piko.shared.net.ProxyMode.RELAY)
+            } else ProxySetting.decode(stored)
+        }
 
     override suspend fun saveProxySetting(setting: ProxySetting) {
+        // 代理凭证与登录密码一样用 AndroidKeyStore 加密，不落明文。
+        val sealed = CredentialCipher.encrypt(setting.encode())
         context.dataStore.edit { preferences ->
-            preferences[PreferencesKeys.PROXY_SETTING] = setting.encode()
+            preferences[PreferencesKeys.PROXY_SETTING] = sealed
         }
     }
 
