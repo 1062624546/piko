@@ -104,7 +104,7 @@ class PikoApplication : Application(), SingletonImageLoader.Factory {
             cacheStore = FilePikoCacheStore(File(cacheDir, "piko").path),
             shareHistoryStore = FilePikoCacheStore(File(filesDir, "piko/share-history").path),
             syncCipher = JvmSyncCipher(),
-            metaTube = MetaTubeService(sessionManager) { HttpClient(OkHttp) },
+            metaTube = MetaTubeService(sessionManager) { dev.piko.shared.net.pikoRelayHttpClient() },
         )
         val motionScale = PikoMotionScale().apply { followSystemAnimatorScale(this@PikoApplication) }
         appScope.launch { sessionManager.reduceMotionFlow.collect { motionScale.appReduced = it } }
@@ -157,6 +157,7 @@ class PikoApplication : Application(), SingletonImageLoader.Factory {
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(PikoRelayInterceptor(mediaClient = true))
             .addNetworkInterceptor(PikoRelayCredentialGuard())
+            .eventListener(dev.piko.shared.net.PikoNetworkCalls.listener)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .build()

@@ -36,7 +36,9 @@ object PikoProxySelector : ProxySelector() {
 
     fun apply(setting: ProxySetting) {
         if (setting == this.setting && system != null) return
+        val reroute = this.setting.mode != setting.mode || this.setting.activeRelay != setting.activeRelay
         this.setting = setting
+        if (reroute) PikoNetworkCalls.cancelActive()
         PikoLog.i("Proxy", "代理：${setting.summary()}")
     }
 

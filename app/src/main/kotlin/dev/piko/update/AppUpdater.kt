@@ -44,7 +44,7 @@ data class AndroidUpdate(
  */
 class AppUpdater(private val context: Context) : GithubUpdateService<AndroidUpdate>(
     releases = GithubReleaseClient(
-        HttpClient(OkHttp),
+        dev.piko.shared.net.pikoRelayHttpClient(),
         userAgent = "Piko/${BuildConfig.VERSION_NAME}",
         latestReleaseUrls = BuildConfig.PIKO_UPDATE_METADATA_URL.takeIf { it.isNotBlank() }
             ?.let { custom -> listOf(custom) + GithubReleaseClient.LATEST_RELEASE_SOURCES.filterNot { it == custom } }

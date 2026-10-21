@@ -1,5 +1,10 @@
 package dev.piko.ui.screens.share
 
+import coil3.compose.AsyncImage
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -144,14 +149,7 @@ fun ShareBrowserScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             if (selecting) Checkbox(checked = file.id in state.selectedIds, onCheckedChange = { state.toggle(file) })
-                            Icon(
-                                when {
-                                    file.isFolder -> Icons.Outlined.Folder
-                                    file.isPlayableVideo() -> Icons.Outlined.PlayCircle
-                                    file.isPreviewableImage() -> Icons.Outlined.Image
-                                    else -> Icons.Outlined.MoreVert
-                                }, null
-                            )
+                            ShareFileThumbnail(file)
                             Text(file.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                             if (!file.isFolder && file.hash.isNotBlank()) {
                                 IconButton(onClick = {
@@ -197,5 +195,41 @@ fun ShareBrowserScreen(
                 }
             },
         )
+    }
+}
+
+/** 分享目录也显示服务端提供的预览，不临时转存文件或逐个下载视频抽帧。 */
+@Composable
+private fun ShareFileThumbnail(file: FileStat) {
+    val video = file.isPlayableVideo()
+    val image = file.isPreviewableImage()
+    var failed by remember(file.id, file.thumbnailLink) { mutableStateOf(false) }
+    var loading by remember(file.id, file.thumbnailLink) { mutableStateOf(file.thumbnailLink.isNotBlank()) }
+    Box(
+        modifier = Modifier.size(width = 80.dp, height = 64.dp)
+            .clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center,
+    ) {
+        if ((video || image) && file.thumbnailLink.isNotBlank() && !failed) {
+            AsyncImage(model = file.thumbnailLink, contentDescription = file.name,
+                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+                onSuccess = { loading = false }, onError = { failed = true; loading = false })
+            if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(when {
+                file.isFolder -> Icons.Outlined.Folder
+                video -> Icons.Outlined.PlayCircle
+                image -> Icons.Outlined.Image
+                else -> Icons.Outlined.InsertDriveFile
+            }, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (video && file.thumbnailLink.isNotBlank() && !failed) {
+            Icon(Icons.Outlined.PlayCircle, contentDescription = "视频", modifier = Modifier.size(24.dp), tint = androidx.compose.ui.graphics.Color.White)
+        }
+        if (failed) {
+            TextButton(onClick = { failed = false; loading = true }, modifier = Modifier.align(Alignment.BottomCenter)) {
+                Text("重试", style = MaterialTheme.typography.labelSmall)
+            }
+        }
     }
 }

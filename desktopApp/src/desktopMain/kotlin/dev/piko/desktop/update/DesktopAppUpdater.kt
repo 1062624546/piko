@@ -764,7 +764,7 @@ class DesktopAppUpdater private constructor(
                 }
             }
             val releases = GithubReleaseClient(
-                http = HttpClient(OkHttp),
+                http = dev.piko.shared.net.pikoRelayHttpClient(),
                 userAgent = "Piko/${version ?: "dev"}",
                 latestReleaseUrls = System.getProperty(API_OVERRIDE_PROPERTY)?.let(::listOf) ?: GithubReleaseClient.LATEST_RELEASE_SOURCES,
             )

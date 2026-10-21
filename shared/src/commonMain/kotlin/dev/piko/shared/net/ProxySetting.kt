@@ -27,7 +27,7 @@ data class ProxySetting(
     val activeRelay: RelayProfile? get() = relays.firstOrNull { it.endpoint == selectedRelay && it.isValid }
 
     fun summary(): String = when (mode) {
-        ProxyMode.RELAY -> activeRelay?.let { "Piko 中继 · ${it.name}" } ?: "Piko 中继（未配置）"
+        ProxyMode.RELAY -> activeRelay?.let { "Web 代理 · ${it.name}" } ?: "Web 代理（未配置）"
         ProxyMode.SYSTEM -> "跟随系统"
         ProxyMode.NONE -> "不使用代理"
         ProxyMode.MANUAL -> if (isManualComplete) "${protocol.label} $host:$port" else "手动（未填写地址）"

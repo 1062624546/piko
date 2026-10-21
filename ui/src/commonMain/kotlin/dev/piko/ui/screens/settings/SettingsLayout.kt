@@ -427,6 +427,7 @@ internal fun SettingsChoiceDialog(
     title: String,
     onDismiss: () -> Unit,
     description: String? = null,
+    dismissLabel: String = "关闭",
     footer: String? = null,
     header: (@Composable () -> Unit)? = null,
     options: @Composable ColumnScope.() -> Unit,
@@ -446,7 +447,7 @@ internal fun SettingsChoiceDialog(
                 if (footer != null) DialogFootnote(footer)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(dismissLabel) } },
     )
 }
 

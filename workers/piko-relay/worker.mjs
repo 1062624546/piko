@@ -1,26 +1,25 @@
-const ROOTS = ['mypikpak.com', 'mypikpak.net', 'pikpak.me', 'pikpakdrive.com'];
-const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']);
 const PROTOCOL = 'piko-relay-v1';
-const API_HOSTS = new Set(ROOTS.flatMap(root => ['user', 'api-drive', 'api-dav'].map(sub => `${sub}.${root}`)));
-const REQUEST_HEADERS = new Set(['accept', 'accept-language', 'authorization', 'content-type', 'content-encoding',
-  'user-agent', 'x-device-id', 'x-captcha-token', 'x-global-file-token', 'x-client-id', 'x-client-version', 'x-peer-id',
-  'range', 'if-range', 'if-none-match', 'if-modified-since']);
-const RESPONSE_HEADERS = new Set(['content-type', 'content-length', 'content-encoding', 'content-range', 'accept-ranges',
-  'etag', 'last-modified', 'retry-after', 'www-authenticate', 'x-request-id']);
+const HOP_HEADERS = new Set(['host', 'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
+  'te', 'trailer', 'transfer-encoding', 'upgrade', 'x-piko-relay-token', 'content-length',
+  'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'cdn-loop', 'x-forwarded-for', 'x-forwarded-proto', 'forwarded']);
 
 function reply(status, message) {
   return Response.json({ protocol: PROTOCOL, message }, { status,
-    headers: { 'X-Piko-Relay-Protocol': PROTOCOL, 'Cache-Control': 'no-store' } });
+    headers: { 'X-Piko-Relay-Protocol': PROTOCOL, 'Cache-Control': 'no-store', ...(status >= 400 ? { 'X-Piko-Relay-Error': '1' } : {}) } });
 }
 
 export function validateTarget(raw, method) {
   let url;
   try { url = new URL(raw); } catch { throw new Error('Invalid target'); }
-  if (url.protocol !== 'https:' || url.port || url.username || url.password || url.hash)
-    throw new Error('HTTPS targets on port 443 only');
-  const api = API_HOSTS.has(url.hostname);
-  const media = ROOTS.some(root => url.hostname === root || url.hostname.endsWith(`.${root}`));
-  if (!api && (!media || !['GET', 'HEAD'].includes(method))) throw new Error('Target not allowed');
+  if (!['http:', 'https:'].includes(url.protocol) || url.port || url.username || url.password || url.hash)
+    throw new Error('Public HTTP/HTTPS targets on standard ports only');
+  const host = url.hostname.toLowerCase().replace(/\.$/, '');
+  // 不开放 IP、单标签主机名与本地命名空间；Workers 不绑定任何私网资源。
+  if (!host.includes('.') || host.includes(':') || /^[0-9.]+$/.test(host) ||
+      ['localhost', 'local', 'internal', 'lan', 'home', 'test', 'invalid', 'onion'].some(x => host === x || host.endsWith('.' + x)))
+    throw new Error('Private target not allowed');
+  if (!METHODS.has(method)) throw new Error('Method not allowed');
   return url;
 }
 
@@ -45,9 +44,18 @@ async function authorized(request, env) {
   return matched !== 0;
 }
 
-function filteredHeaders(source, allowed) {
+function upstreamHeaders(source) {
   const result = new Headers();
-  for (const [key, value] of source) if (allowed.has(key.toLowerCase())) result.set(key, value);
+  const nominated = new Set((source.get('connection') || '').toLowerCase().split(',').map(x => x.trim()));
+  for (const [key, value] of source) {
+    const name = key.toLowerCase();
+    if (!HOP_HEADERS.has(name) && !nominated.has(name) && !name.startsWith('cf-') && !name.startsWith('x-piko-')) result.append(key, value);
+  }
+  return result;
+}
+function responseHeaders(source) {
+  const result = new Headers(source);
+  for (const key of ['connection', 'transfer-encoding', 'keep-alive', 'proxy-authenticate', 'upgrade', 'x-piko-relay-error']) result.delete(key);
   return result;
 }
 
@@ -59,7 +67,7 @@ async function fetchWithHeaderTimeout(url, init, timeoutMs) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const incoming = new URL(request.url);
     if (incoming.pathname === '/health' && ['GET', 'HEAD'].includes(request.method))
       return reply(200, 'Piko relay is running');
@@ -85,13 +93,21 @@ export default {
     let target;
     try { target = validateTarget(values[0], request.method); }
     catch { return reply(403, 'Target not allowed'); }
-    let headers = filteredHeaders(request.headers, REQUEST_HEADERS);
+    let uploadBody = request.body;
+    const length = Number(request.headers.get('Content-Length'));
+    if (uploadBody && Number.isSafeInteger(length) && length >= 0 && request.headers.has('Content-Length') && typeof FixedLengthStream !== 'undefined') {
+      const fixed = new FixedLengthStream(length);
+      ctx.waitUntil(uploadBody.pipeTo(fixed.writable).catch(() => {}));
+      uploadBody = fixed.readable;
+    }
+    let headers = upstreamHeaders(request.headers);
+    if (target.origin === incoming.origin) return reply(403, 'Relay loop refused');
     try {
       // 大响应直接透传流，绝不把视频或下载文件读入内存。
       for (let redirects = 0; redirects <= 5; redirects++) {
         const response = await fetchWithHeaderTimeout(target, {
           method: request.method, headers, redirect: 'manual',
-          body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+          body: ['GET', 'HEAD'].includes(request.method) ? undefined : uploadBody,
         }, 60_000);
         if ([301, 302, 303, 307, 308].includes(response.status)) {
           const location = response.headers.get('Location');
@@ -99,16 +115,22 @@ export default {
           // 不重放写操作，避免一次请求变成两次写入；不把 Location 返回给 App。
           if (!location || !['GET', 'HEAD'].includes(request.method)) return reply(502, 'Upstream redirect refused');
           const next = validateTarget(new URL(location, target).href, request.method);
+          if (next.origin === incoming.origin) return reply(502, 'Relay loop refused');
+          if (target.protocol === 'https:' && next.protocol !== 'https:') return reply(502, 'HTTPS downgrade refused');
           if (next.origin !== target.origin) {
-            headers = new Headers(headers);
-            for (const key of ['authorization', 'x-captcha-token', 'x-device-id', 'x-global-file-token']) headers.delete(key);
+            const safe = new Headers();
+            for (const key of ['accept', 'accept-language', 'user-agent', 'range', 'if-range']) {
+              const value = headers.get(key); if (value !== null) safe.set(key, value);
+            }
+            headers = safe;
           }
           target = next;
           continue;
         }
-        const outgoing = filteredHeaders(response.headers, RESPONSE_HEADERS);
+        const outgoing = responseHeaders(response.headers);
         outgoing.set('Cache-Control', 'no-store');
         outgoing.set('X-Piko-Relay-Protocol', PROTOCOL);
+        outgoing.set('X-Piko-Upstream-Url', target.href);
         return new Response(response.body, { status: response.status, headers: outgoing });
       }
       return reply(502, 'Too many upstream redirects');

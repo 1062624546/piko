@@ -40,14 +40,30 @@ class PikoRelayInterceptorTest {
         }
     }
 
-    @Test fun onlySelectedTrafficUsesRelayAndDisabledModeKeepsProfiles() {
+    @Test fun allExternalRequestsUseRelayButLocalAndRelayItselfStayDirect() {
         PikoProxySelector.apply(setting)
-        request("https://dl.mypikpak.com/file", media = true) { assertEquals("dl.mypikpak.com", it.url.host) }
-        PikoProxySelector.apply(setting.copy(relayMedia = true))
-        request("https://dl.mypikpak.com/file", media = true) { assertEquals("relay.example.com", it.url.host) }
-        request("https://mypikpak.com.evil.test/file", media = true) { assertEquals(null, it.header("X-Piko-Relay-Token")) }
+        for (url in listOf("https://dl.mypikpak.com/file", "https://api.github.com/repos/x/releases", "https://metatube.example.com/v1/search", "https://storage.example.com/upload")) {
+            request(url) { assertEquals("relay.example.com", it.url.host); assertEquals(url, it.url.queryParameter("url")) }
+        }
+        for (url in listOf("http://127.0.0.1:3456/file", "http://localhost/file", "http://[::1]/file", "https://relay.example.com/v1/check")) {
+            request(url) { assertEquals(null, it.header("X-Piko-Relay-Token")) }
+        }
         PikoProxySelector.apply(setting.copy(mode = ProxyMode.NONE))
         request("https://user.mypikpak.com/v1/auth/signin") { assertEquals("user.mypikpak.com", it.url.host) }
+    }
+
+    @Test fun relayFailureNeverRetriesOriginalDestination() {
+        PikoProxySelector.apply(setting)
+        var count = 0
+        val client = OkHttpClient.Builder().addInterceptor(PikoRelayInterceptor()).addInterceptor { chain ->
+            count++
+            assertEquals("relay.example.com", chain.request().url.host)
+            throw IOException("offline")
+        }.build()
+        try {
+            assertFailsWith<IOException> { client.newCall(Request.Builder().url("https://api.github.com/").build()).execute() }
+            assertEquals(1, count)
+        } finally { client.dispatcher.executorService.shutdown() }
     }
 
     @Test fun missingCredentialsFailClosed() {

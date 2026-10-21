@@ -213,7 +213,7 @@ internal class MpvPlaybackBackend(
         pendingSubtitles = if (preview) emptyList() else subtitles
         val uri = when (target) {
             is PlaybackTarget.LocalFile -> localUri(target.path) ?: return
-            is PlaybackTarget.Url -> target.url
+            is PlaybackTarget.Url -> dev.piko.shared.net.PikoNativeMediaGateway.route(target.url)
         }
         observePropertiesOnce()
         val start = String.format(Locale.US, "%.3f", startMillis.coerceAtLeast(0L) / 1000.0)
@@ -322,7 +322,7 @@ internal class MpvPlaybackBackend(
             pendingSubtitles = pendingSubtitles + subtitle
             return
         }
-        onMpv { mpv.command(mpvSubtitleSelectCommand(subtitle)) }
+        onMpv { mpv.command(mpvSubtitleSelectCommand(subtitle.copy(url = dev.piko.shared.net.PikoNativeMediaGateway.route(subtitle.url)))) }
     }
 
     override val supportsRotation: Boolean = true
@@ -346,7 +346,7 @@ internal class MpvPlaybackBackend(
         pendingSubtitles = emptyList()
         if (subtitles.isEmpty() || released) return
         val hasSelected = readMpvTracks { mpv.getPropertyString(it) }.selectedSubtitleId != null
-        mpvSubtitleAddCommands(subtitles, hasSelected).forEach { mpv.command(it) }
+        mpvSubtitleAddCommands(subtitles.map { it.copy(url = dev.piko.shared.net.PikoNativeMediaGateway.route(it.url)) }, hasSelected).forEach { mpv.command(it) }
     }
 
     fun attachSurface(surface: Surface) {

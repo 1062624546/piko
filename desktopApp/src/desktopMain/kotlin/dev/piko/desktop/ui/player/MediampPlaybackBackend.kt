@@ -200,7 +200,7 @@ internal class MediampPlaybackBackend(
         val uri = when (target) {
             // 经 Path 取 URI：File.toURI 给的是 file:/home/…，mpv 只认带 // 的 file://，否则当成文件名，打开即失败
             is PlaybackTarget.LocalFile -> File(target.path).toPath().toUri().toString()
-            is PlaybackTarget.Url -> target.url
+            is PlaybackTarget.Url -> dev.piko.shared.net.PikoNativeMediaGateway.route(target.url)
         }
         awaitingReady = true
         pendingSubtitles = subtitles
@@ -251,7 +251,7 @@ internal class MediampPlaybackBackend(
             pendingSubtitles = pendingSubtitles + subtitle
             return
         }
-        handle.command(*mpvSubtitleSelectCommand(subtitle))
+        handle.command(*mpvSubtitleSelectCommand(subtitle.copy(url = dev.piko.shared.net.PikoNativeMediaGateway.route(subtitle.url))))
     }
 
     override val supportsRotation: Boolean get() = mpv != null
@@ -279,7 +279,7 @@ internal class MediampPlaybackBackend(
         val handle = mpv ?: return
         if (subtitles.isEmpty()) return
         val hasSelected = readMpvTracks { handle.getPropertyString(it) }.selectedSubtitleId != null
-        mpvSubtitleAddCommands(subtitles, hasSelected).forEach { handle.command(*it) }
+        mpvSubtitleAddCommands(subtitles.map { it.copy(url = dev.piko.shared.net.PikoNativeMediaGateway.route(it.url)) }, hasSelected).forEach { handle.command(*it) }
     }
 
     override fun stop() {

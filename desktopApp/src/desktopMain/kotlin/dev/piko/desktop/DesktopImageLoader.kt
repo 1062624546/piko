@@ -19,7 +19,8 @@ import okio.Path.Companion.toOkioPath
 internal fun installImageLoader() {
     SingletonImageLoader.setSafe { context ->
         val client = OkHttpClient.Builder().addInterceptor(PikoRelayInterceptor(mediaClient = true))
-            .addNetworkInterceptor(PikoRelayCredentialGuard()).build()
+            .addNetworkInterceptor(PikoRelayCredentialGuard())
+            .eventListener(dev.piko.shared.net.PikoNetworkCalls.listener).build()
         ImageLoader.Builder(context)
             .components { add(OkHttpNetworkFetcherFactory(callFactory = { client })) }
             .diskCache { DiskCache.Builder().directory(PikoHome.root.resolve("cache/images").toOkioPath()).build() }

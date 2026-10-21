@@ -553,7 +553,6 @@ fun SettingsScreen(
             current = proxySetting,
             onSave = { setting ->
                 sessionManager.saveProxySetting(setting)
-                showProxyDialog = false
             },
             onDismiss = { showProxyDialog = false },
         )

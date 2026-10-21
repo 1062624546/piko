@@ -1,178 +1,205 @@
 package dev.piko.ui.screens.settings
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import dev.piko.shared.net.RelayProfile
-import dev.piko.ui.platform.LocalPikoPlatform
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.piko.shared.net.ProxyMode
 import dev.piko.shared.net.ProxyProtocol
 import dev.piko.shared.net.ProxySetting
+import dev.piko.shared.net.RelayProfile
 import dev.piko.ui.components.PikoTextField
+import dev.piko.ui.platform.LocalPikoPlatform
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
-/**
- * 网络代理：跟随系统、不使用或手动填写。登录页与设置页共用，登录页也要有，
- * 因为连不上 PikPak 的人往往就卡在登录这一步。
- */
+private enum class ProxyPage { ROOT, WEB, EDITOR, MANUAL }
+
+/** 登录页与设置页共用。列表、代理详情和手动配置分别显示，每次保存直接落盘。 */
 @Composable
 fun ProxySettingsDialog(
     current: ProxySetting,
     onSave: suspend (ProxySetting) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var mode by remember { mutableStateOf(current.mode) }
-    var protocol by remember { mutableStateOf(current.protocol) }
-    var host by remember { mutableStateOf(current.host) }
-    var port by remember { mutableStateOf(current.port.takeIf { it > 0 }?.toString().orEmpty()) }
-    var relays by remember { mutableStateOf(current.relays) }
-    var selected by remember { mutableStateOf(current.selectedRelay) }
-    var relayMedia by remember { mutableStateOf(current.relayMedia) }
-    var importText by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var endpoint by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
-    var editingEndpoint by remember { mutableStateOf<String?>(null) }
-    var message by remember { mutableStateOf("") }
+    var setting by remember { mutableStateOf(current) }
+    var page by remember { mutableStateOf(ProxyPage.ROOT) }
+    var editing by remember { mutableStateOf<RelayProfile?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    fun save(next: ProxySetting, then: () -> Unit) {
+        if (busy) return
+        scope.launch {
+            busy = true
+            error = ""
+            try {
+                onSave(next)
+                setting = next
+                then()
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = "保存失败，请重试（凭证加密或存储不可用）" }
+            finally { busy = false }
+        }
+    }
+    fun navigate(next: ProxyPage) { if (!busy) { error = ""; page = next } }
+    when (page) {
+        ProxyPage.ROOT -> SettingsChoiceDialog(
+            icon = Icons.Outlined.Public,
+            title = "网络代理",
+            onDismiss = { if (!busy) onDismiss() },
+            footer = error.takeIf { it.isNotBlank() },
+        ) {
+            SettingsChoiceOption("跟随系统", setting.mode == ProxyMode.SYSTEM,
+                { save(setting.copy(mode = ProxyMode.SYSTEM), onDismiss) }, supporting = "使用系统设置中的代理")
+            SettingsChoiceOption("不使用代理", setting.mode == ProxyMode.NONE,
+                { save(setting.copy(mode = ProxyMode.NONE), onDismiss) }, supporting = "直接连接，保留已添加的代理")
+            SettingsNavigationRow(Icons.Outlined.Public, "Web 代理",
+                if (setting.mode == ProxyMode.RELAY) "已启用 · ${setting.activeRelay?.name.orEmpty()}" else "添加或管理代理链接",
+                onClick = { navigate(ProxyPage.WEB) }, enabled = !busy)
+            SettingsNavigationRow(Icons.Outlined.Public, "HTTP / SOCKS5 代理",
+                if (setting.mode == ProxyMode.MANUAL) setting.summary() else "手动填写地址和端口",
+                onClick = { navigate(ProxyPage.MANUAL) }, enabled = !busy)
+        }
+        ProxyPage.WEB -> SettingsChoiceDialog(
+            icon = Icons.Outlined.Public,
+            title = "Web 代理",
+            onDismiss = { navigate(ProxyPage.ROOT) },
+            dismissLabel = "返回",
+            footer = error.takeIf { it.isNotBlank() } ?: "点击已添加的代理，可以测试连接、更换链接或删除。",
+            header = {
+                TextButton(onClick = { editing = null; navigate(ProxyPage.EDITOR) }, enabled = !busy) { Text("添加 Web 代理") }
+            },
+        ) {
+            if (setting.relays.isEmpty()) {
+                Text("还没有添加 Web 代理", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                SettingsSwitchRow(Icons.Outlined.Public, "启用 Web 代理", null,
+                    setting.mode == ProxyMode.RELAY,
+                    { enabled -> save(setting.copy(mode = if (enabled) ProxyMode.RELAY else ProxyMode.NONE)) {} },
+                    enabled = !busy && setting.activeRelay != null)
+                setting.relays.forEach { saved ->
+                    androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(
+                            selected = setting.mode == ProxyMode.RELAY && setting.selectedRelay == saved.endpoint,
+                            onClick = { save(setting.copy(mode = ProxyMode.RELAY, selectedRelay = saved.endpoint, relayMedia = true)) {} },
+                            enabled = !busy)
+                        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.weight(1f)) {
+                            SettingsNavigationRow(Icons.Outlined.Public, saved.name,
+                                (if (setting.mode == ProxyMode.RELAY && setting.selectedRelay == saved.endpoint) "使用中 · " else "") + saved.endpoint,
+                                onClick = { editing = saved; navigate(ProxyPage.EDITOR) }, enabled = !busy)
+                        }
+                    }
+                }
+
+            }
+        }
+        ProxyPage.EDITOR -> WebProxyEditor(
+            profile = editing,
+            busy = busy,
+            saveError = error,
+            onDismiss = { navigate(ProxyPage.WEB) },
+            onSave = { next ->
+                save(setting.copy(mode = ProxyMode.RELAY,
+                    relayMedia = true,
+                    relays = setting.relays.filterNot { it.endpoint == editing?.endpoint || it.endpoint == next.endpoint } + next,
+                    selectedRelay = next.endpoint)) { page = ProxyPage.WEB }
+            },
+            onDelete = editing?.let { old -> {
+                val remaining = setting.relays.filterNot { it.endpoint == old.endpoint }
+                val selected = if (setting.selectedRelay == old.endpoint) remaining.firstOrNull()?.endpoint.orEmpty() else setting.selectedRelay
+                save(setting.copy(relays = remaining, selectedRelay = selected,
+                    mode = if (remaining.isEmpty() && setting.mode == ProxyMode.RELAY) ProxyMode.NONE else setting.mode)) { page = ProxyPage.WEB }
+            } },
+        )
+        ProxyPage.MANUAL -> ManualProxyEditor(setting, busy, error,
+            onDismiss = { navigate(ProxyPage.ROOT) },
+            onSave = { next -> save(next, onDismiss) })
+    }
+}
+
+@Composable
+private fun WebProxyEditor(
+    profile: RelayProfile?,
+    busy: Boolean,
+    saveError: String,
+    onDismiss: () -> Unit,
+    onSave: (RelayProfile) -> Unit,
+    onDelete: (() -> Unit)?,
+) {
+    var link by remember(profile) { mutableStateOf(profile?.let(RelayProfile::exportLink).orEmpty()) }
+    var result by remember { mutableStateOf("") }
+    var testing by remember { mutableStateOf(false) }
+    val parsed = remember(link) { runCatching { RelayProfile.importLink(link) } }
+    val target = parsed.getOrNull()
     val scope = rememberCoroutineScope()
     val platform = LocalPikoPlatform.current
-    val draft = current.copy(mode = mode, protocol = protocol, host = host.trim(),
-        port = port.toIntOrNull() ?: 0, relays = relays, selectedRelay = selected, relayMedia = relayMedia)
-    fun edit(profile: RelayProfile) {
-        name = profile.name
-        endpoint = profile.endpoint
-        token = profile.token
-        editingEndpoint = profile.endpoint
-        message = ""
-    }
-    fun profile(): RelayProfile = RelayProfile(name.trim(), RelayProfile.normalizeEndpoint(endpoint), token.trim()).also {
-        require(it.isValid) { "请填写名称、HTTPS 根地址及 24 至 256 位访问凭证" }
-    }
-    fun addProfile() {
-        val next = profile()
-        relays = relays.filterNot { it.endpoint == editingEndpoint || it.endpoint == next.endpoint } + next
-        selected = next.endpoint
-        editingEndpoint = null
-        name = ""; endpoint = ""; token = ""; importText = ""
-        message = "已加入列表，点击保存后生效"
-    }
-    val portInvalid = port.isNotEmpty() && draft.port !in 1..65535
-    val canSave = !busy && when (mode) {
-        ProxyMode.MANUAL -> draft.isManualComplete
-        ProxyMode.RELAY -> draft.activeRelay != null && listOf(name, endpoint, token, importText).all { it.isBlank() }
-        else -> true
-    }
-
-    // 选了方式还要填地址才算数，所以是填写类的「取消」「保存」，不是点选即生效
     SettingsInputDialog(
         icon = Icons.Outlined.Public,
-        title = "网络代理",
-        // 已建立的连接沿用原来的路线，空闲一阵后关闭，之后才换
-        footer = "保存后新请求生效。Piko 中继支持登录、文件和分享接口。媒体中继支持 PikPak 域名下的图片与 SDK 原画读取；播放器直链、转码流和第三方域名仍直连。只导入你信任的中继。",
-        onSave = {
-            scope.launch {
-                busy = true
-                try { onSave(draft) }
-                catch (e: CancellationException) { throw e }
-                catch (_: Exception) { message = "保存失败，请重试（凭证加密或存储不可用）" }
-                finally { busy = false }
-            }
-        },
-        saveEnabled = canSave,
-        onDismiss = onDismiss,
+        title = if (profile == null) "添加 Web 代理" else "管理 Web 代理",
+        onDismiss = { if (!busy && !testing) onDismiss() },
+        onSave = { target?.let(onSave) },
+        saveEnabled = target != null && !busy && !testing,
+        footer = "保存后自动启用，所有外部业务请求统一走代理；连接失败不会切换直连。",
     ) {
-        Column(Modifier.selectableGroup()) {
-            SettingsChoiceOption("跟随系统", mode == ProxyMode.SYSTEM, { mode = ProxyMode.SYSTEM }, supporting = "使用系统设置中的代理")
-            SettingsChoiceOption("不使用代理", mode == ProxyMode.NONE, { mode = ProxyMode.NONE }, supporting = "始终直接连接")
-            SettingsChoiceOption("Piko 中继", mode == ProxyMode.RELAY, { mode = ProxyMode.RELAY }, supporting = "导入专用链接，使用 Cloudflare 中继")
-            SettingsChoiceOption("手动", mode == ProxyMode.MANUAL, { mode = ProxyMode.MANUAL }, supporting = "指定 HTTP 或 SOCKS5 代理")
+        PikoTextField(link, { link = it; result = "" }, "代理链接",
+            placeholder = "piko://proxy?url=…&token=…",
+            enabled = !busy && !testing,
+            visualTransformation = PasswordVisualTransformation(),
+            isError = link.isNotBlank() && target == null,
+            supportingText = if (link.isNotBlank() && target == null) "链接无效，请粘贴完整的 Piko 代理链接" else "粘贴链接后即可测试并保存")
+        if (target != null) {
+            Text(target.name, style = MaterialTheme.typography.titleSmall)
+            Text(target.endpoint, style = MaterialTheme.typography.bodyMedium)
         }
-        if (mode == ProxyMode.RELAY) {
-            relays.forEach { saved ->
-                SettingsChoiceOption(saved.name, selected == saved.endpoint, { selected = saved.endpoint }, supporting = saved.endpoint)
-                Row {
-                    TextButton(onClick = { edit(saved) }, enabled = !busy) { Text("编辑") }
-                    TextButton(onClick = {
-                        relays = relays.filterNot { it.endpoint == saved.endpoint }
-                        if (selected == saved.endpoint) selected = relays.firstOrNull()?.endpoint.orEmpty()
-                        if (editingEndpoint == saved.endpoint) { editingEndpoint = null; name = ""; endpoint = ""; token = "" }
-                    }, enabled = !busy) { Text("删除") }
-                }
+        TextButton(onClick = {
+            val captured = target ?: return@TextButton
+            scope.launch {
+                testing = true
+                result = ""
+                try { result = platform.checkRelay(captured) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result = "连接测试失败，请检查链接和网络" }
+                finally { testing = false }
             }
-            Row {
-                Text("媒体中继（可选）")
-                Switch(checked = relayMedia, onCheckedChange = { relayMedia = it })
-            }
-            PikoTextField(importText, { importText = it }, "代理链接", placeholder = "piko://proxy?url=…&token=…",
-                visualTransformation = PasswordVisualTransformation(), supportingText = "链接包含凭证，请勿公开分享")
-            TextButton(onClick = {
-                try { edit(RelayProfile.importLink(importText)); message = "已解析，请确认后点击添加或更新" }
-                catch (e: Exception) { message = e.message ?: "无法解析代理链接" }
-            }, enabled = importText.isNotBlank() && !busy) { Text("解析链接") }
-            PikoTextField(name, { name = it.take(80) }, "名称", placeholder = "我的 Piko 中继")
-            PikoTextField(endpoint, { endpoint = it }, "中继地址", placeholder = "https://piko-relay.example.com")
-            PikoTextField(token, { token = it }, "访问凭证", visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
-            Row {
-                TextButton(onClick = {
-                    try { addProfile() } catch (e: Exception) { message = e.message ?: "配置不完整" }
-                }, enabled = !busy) { Text(if (editingEndpoint == null) "添加配置" else "更新配置") }
-                TextButton(onClick = {
-                    scope.launch {
-                        busy = true
-                        try {
-                            val target = if (endpoint.isNotBlank()) profile() else requireNotNull(draft.activeRelay) { "请先选择或填写配置" }
-                            message = platform.checkRelay(target)
-                        } catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { message = "连接测试失败，请检查配置和网络" }
-                        finally { busy = false }
-                    }
-                }, enabled = !busy) { Text(if (busy) "请稍候…" else "测试连接") }
-            }
+        }, enabled = target != null && !busy && !testing) { Text(if (testing) "正在测试…" else "测试连接") }
+        if (result.isNotBlank()) Text(result, style = MaterialTheme.typography.bodyMedium)
+        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error)
+        if (onDelete != null) TextButton(onClick = onDelete, enabled = !busy && !testing) {
+            Text("删除代理", color = MaterialTheme.colorScheme.error)
         }
-        if (message.isNotBlank()) Text(message, style = MaterialTheme.typography.bodySmall)
-        if (mode == ProxyMode.MANUAL) {
-            SettingsSegmentedChoice(
-                options = ProxyProtocol.entries,
-                selected = protocol,
-                label = { it.label },
-                onSelect = { protocol = it },
-                fill = true,
-            )
-            PikoTextField(
-                value = host,
-                onValueChange = { host = it },
-                label = "地址",
-                placeholder = "127.0.0.1",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            )
-            PikoTextField(
-                value = port,
-                onValueChange = { value -> port = value.filter(Char::isDigit).take(5) },
-                label = "端口",
-                placeholder = "7890",
-                isError = portInvalid,
-                supportingText = "1 至 65535",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
-        }
+    }
+}
+
+@Composable
+private fun ManualProxyEditor(
+    setting: ProxySetting,
+    busy: Boolean,
+    error: String,
+    onDismiss: () -> Unit,
+    onSave: (ProxySetting) -> Unit,
+) {
+    var protocol by remember { mutableStateOf(setting.protocol) }
+    var host by remember { mutableStateOf(setting.host) }
+    var port by remember { mutableStateOf(setting.port.takeIf { it > 0 }?.toString().orEmpty()) }
+    val draft = setting.copy(mode = ProxyMode.MANUAL, protocol = protocol, host = host.trim(), port = port.toIntOrNull() ?: 0)
+    SettingsInputDialog(Icons.Outlined.Public, "HTTP / SOCKS5 代理",
+        onSave = { onSave(draft) }, saveEnabled = draft.isManualComplete && !busy,
+        onDismiss = { if (!busy) onDismiss() }, footer = error.takeIf { it.isNotBlank() }) {
+        SettingsSegmentedChoice(ProxyProtocol.entries, protocol, { it.label }, { protocol = it }, fill = true)
+        PikoTextField(host, { host = it }, "地址", placeholder = "127.0.0.1", enabled = !busy)
+        PikoTextField(port, { port = it.filter(Char::isDigit).take(5) }, "端口", placeholder = "7890",
+            isError = port.isNotEmpty() && draft.port !in 1..65535, supportingText = "1 至 65535", enabled = !busy,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
     }
 }

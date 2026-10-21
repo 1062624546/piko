@@ -143,7 +143,6 @@ fun LoginScreen(
             current = proxySetting,
             onSave = { setting ->
                 preferences.saveProxySetting(setting)
-                showProxyDialog = false
             },
             onDismiss = { showProxyDialog = false },
         )

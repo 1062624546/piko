@@ -483,7 +483,7 @@ private fun createServices(settings: DesktopSettingsStore, preferences: DesktopP
         uploadSources = DesktopPikoUploadSources(),
         cacheStore = FilePikoCacheStore(PikoHome.root.resolve("cache").toString()),
         syncCipher = JvmSyncCipher(),
-        metaTube = MetaTubeService(preferences) { HttpClient(OkHttp) },
+        metaTube = MetaTubeService(preferences) { dev.piko.shared.net.pikoRelayHttpClient() },
     )
 }
 

@@ -48,7 +48,7 @@ object VideoSegmentExtractor {
         if (dataSource != null) {
             extractor.setDataSource(dataSource)
         } else if (sourceUrlOrPath.startsWith("http://") || sourceUrlOrPath.startsWith("https://")) {
-            extractor.setDataSource(context, Uri.parse(sourceUrlOrPath), mapOf("User-Agent" to "Piko/1.0"))
+            extractor.setDataSource(context, Uri.parse(dev.piko.shared.net.PikoNativeMediaGateway.route(sourceUrlOrPath)), mapOf("User-Agent" to "Piko/1.0"))
         } else {
             extractor.setDataSource(sourceUrlOrPath)
         }
