@@ -93,6 +93,7 @@ class FakePikPakServer(
 
     /** 每个请求记一条「方法 路径」，用于判断某类请求有没有发生、发生了几次。 */
     val calls = CopyOnWriteArrayList<String>()
+    val shareFolderRequests = AtomicInteger()
     val shares = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 
     /** 为真时所有请求在传输层失败，模拟断网。 */
@@ -243,6 +244,15 @@ class FakePikPakServer(
                 }
             path.endsWith("/v1/auth/token") -> tokenResponse()
             path.endsWith("/drive/v1/share/restore") -> restoreShare(request)
+            path.endsWith("/drive/v1/share/detail") -> {
+                shareFolderRequests.incrementAndGet()
+                if (apiDelayMs > 0) delay(apiDelayMs)
+                val parent = request.url.parameters["parent_id"].orEmpty()
+                json(buildJsonObject {
+                    put("share_status", "OK")
+                    put("files", buildJsonArray { children(parent).forEach { add(buildJsonObject { putNode(it) }) } })
+                }.toString())
+            }
             path.endsWith("/drive/v1/share") -> {
                 val ids = shares[request.url.parameters["share_id"]].orEmpty()
                 json(buildJsonObject {

@@ -19,10 +19,10 @@ require(!releaseSigningConfigured || releaseSigningValues.all { it.isPresent }) 
     "Release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, " +
         "ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD together."
 }
-val appVersionName = providers.environmentVariable("PIKO_VERSION_NAME").orElse("1.4.2")
+val appVersionName = providers.environmentVariable("PIKO_VERSION_NAME").orElse("1.4.3")
 val appVersionCode = providers.environmentVariable("PIKO_VERSION_CODE")
     .map { it.toInt() }
-    .orElse(1004002)
+    .orElse(1004003)
 require(appVersionCode.get() > 0) { "PIKO_VERSION_CODE must be greater than zero." }
 
 val enableAbiSplits = providers.gradleProperty("piko.enableAbiSplits")

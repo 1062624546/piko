@@ -69,7 +69,18 @@ class ShareSaveState(
 
     val selectedBytes: Long by derivedStateOf { entries.filter { it.id in selectedIds }.sumOf { it.sizeBytes } }
 
+    data class FolderView(val index: Int = 0, val offset: Int = 0, val query: String = "")
+    private val folderListings = mutableMapOf<String, List<FileStat>>()
+    private val folderViews = mutableMapOf<String, FolderView>()
+    val folderId: String get() = path.lastOrNull()?.id.orEmpty()
+
+    fun folderView(id: String): FolderView? = folderViews[id]
+    fun rememberFolderView(id: String, index: Int, offset: Int, query: String) {
+        if (id == folderId) folderViews[id] = FolderView(index.coerceAtLeast(0), offset.coerceAtLeast(0), query)
+    }
+
     private var loadJob: Job? = null
+    private var loadGeneration = 0
 
     init {
         open()
@@ -83,12 +94,16 @@ class ShareSaveState(
                     info = share
                     needsPassCode = false
                     path.clear()
+                    folderListings.clear()
+                    folderViews.clear()
                     entries = share.files
+                    folderListings[""] = entries
                     for (crumb in initialPath) {
                         val target = entries.firstOrNull { it.id == crumb.id && it.isFolder } ?: break
                         val listing = driveRepo.shareFolder(shareId, share.passCodeToken, target.id).getOrNull() ?: break
                         path += PikoPathBreadcrumb(target.id, target.name)
                         entries = listing
+                        folderListings[target.id] = listing
                     }
                 }
                 .onFailure { error ->
@@ -114,33 +129,29 @@ class ShareSaveState(
                 .onSuccess {
                     path += PikoPathBreadcrumb(folder.id, folder.name)
                     entries = it
+                    folderListings[folder.id] = it
                 }
                 .logFailure(TAG, "列出分享里的文件夹失败：${folder.id}")
                 .onFailure { errorMessage = "无法打开文件夹" }
         }
     }
 
-    /** 回到第 [depth] 层；0 是顶层。 */
+    /** 已走过的祖先层级保留原列表，返回不联网，也不会把加载中的子目录写回来。 */
     fun goTo(depth: Int) {
-        if (depth >= path.size) return
-        if (depth == 0) {
-            val share = info ?: return
-            path.clear()
-            entries = share.files
-            selectedIds.clear()
-            return
+        if (depth < 0 || depth >= path.size) return
+        val destination = if (depth == 0) "" else path[depth - 1].id
+        val listing = folderListings[destination] ?: return
+        loadGeneration++
+        loadJob?.cancel()
+        isLoading = false
+        errorMessage = null
+        selectedIds.clear()
+        while (path.size > depth) {
+            val removed = path.removeAt(path.lastIndex)
+            folderListings.remove(removed.id)
+            folderViews.remove(removed.id)
         }
-        val folder = path[depth - 1]
-        val token = info?.passCodeToken ?: return
-        load {
-            driveRepo.shareFolder(shareId, token, folder.id)
-                .onSuccess {
-                    while (path.size > depth) path.removeAt(path.lastIndex)
-                    entries = it
-                }
-                .logFailure(TAG, "列出分享里的文件夹失败：${folder.id}")
-                .onFailure { errorMessage = "无法打开文件夹" }
-        }
+        entries = listing
     }
 
     fun toggle(file: FileStat) {
@@ -241,13 +252,14 @@ class ShareSaveState(
     }
 
     private fun load(block: suspend () -> Unit) {
+        val generation = ++loadGeneration
         loadJob?.cancel()
         isLoading = true
         errorMessage = null
         selectedIds.clear()
         loadJob = scope.launch {
-            block()
-            isLoading = false
+            try { block() }
+            finally { if (generation == loadGeneration) isLoading = false }
         }
     }
 }

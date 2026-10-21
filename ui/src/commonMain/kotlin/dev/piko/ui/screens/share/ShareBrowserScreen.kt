@@ -42,7 +42,6 @@ fun ShareBrowserScreen(
     val scope = rememberCoroutineScope()
     val downloadManager = LocalPikoServices.current.downloadManager
     val state = session.browser
-    var query by remember { mutableStateOf("") }
     var selecting by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     var historyMode by remember { mutableStateOf(false) }
@@ -50,29 +49,38 @@ fun ShareBrowserScreen(
     var previewImage by remember { mutableStateOf<FileStat?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
 
+    val folderId = state?.folderId.orEmpty()
+    val savedView = state?.folderView(folderId)
+    val remembered = session.history.firstOrNull { it.shareId == session.activeShareId }
+    val startIndex = savedView?.index ?: if (remembered?.path?.lastOrNull()?.id.orEmpty() == folderId) remembered?.scrollIndex ?: 0 else 0
+    var query by key(state, folderId) { remember { mutableStateOf(savedView?.query.orEmpty()) } }
+    val scroll = key(state, folderId) {
+        rememberLazyListState(initialFirstVisibleItemIndex = startIndex, initialFirstVisibleItemScrollOffset = savedView?.offset ?: 0)
+    }
+    fun rememberView() {
+        state?.rememberFolderView(folderId, scroll.firstVisibleItemIndex, scroll.firstVisibleItemScrollOffset, query)
+    }
+    fun goTo(depth: Int) { rememberView(); state?.goTo(depth) }
     fun back() {
         when {
             previewImage != null -> previewImage = null
             historyMode -> historyMode = false
             selecting -> { selecting = false; state?.selectedIds?.clear() }
-            state != null && state.path.isNotEmpty() -> state.goTo(state.path.size - 1)
-            else -> onBackHome()
+            state != null && state.path.isNotEmpty() -> goTo(state.path.size - 1)
+            else -> { rememberView(); onBackHome() }
         }
     }
     BackHandler { back() }
-    val folderId = state?.path?.lastOrNull()?.id.orEmpty()
-    val remembered = session.history.firstOrNull { it.shareId == session.activeShareId }
-    val startIndex = if (remembered?.path?.lastOrNull()?.id.orEmpty() == folderId) remembered?.scrollIndex ?: 0 else 0
-    val scroll = key(folderId) { rememberLazyListState(initialFirstVisibleItemIndex = startIndex) }
-    LaunchedEffect(folderId) { query = ""; selecting = false }
+    LaunchedEffect(state, folderId) { selecting = false }
     LaunchedEffect(state, folderId, scroll, state?.isLoading) {
         if (state == null || state.isLoading) return@LaunchedEffect
-        snapshotFlow { scroll.firstVisibleItemIndex }.collect { index ->
-            session.visited(state.info?.title.orEmpty(), state.path.toList(), index)
+        val currentPath = state.path.toList()
+        snapshotFlow { Triple(scroll.firstVisibleItemIndex, scroll.firstVisibleItemScrollOffset, query) }.collect { (index, offset, filter) ->
+            if (state.folderId == folderId && !state.isLoading) {
+                state.rememberFolderView(folderId, index, offset, filter)
+                session.visited(state.info?.title.orEmpty(), currentPath, index)
+            }
         }
-    }
-    LaunchedEffect(state?.path?.toList(), state?.info?.title, state?.isLoading) {
-        if (state != null && !state.isLoading) session.visited(state.info?.title.orEmpty(), state.path.toList(), scroll.firstVisibleItemIndex)
     }
     val shown = state?.entries.orEmpty()
         .filter { it.name.contains(query, ignoreCase = true) }
@@ -103,9 +111,9 @@ fun ShareBrowserScreen(
                     Button(onClick = state::open) { Text("打开分享") }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { state.goTo(0) }) { Text("根目录") }
+                    TextButton(onClick = { goTo(0) }) { Text("根目录") }
                     state.path.forEachIndexed { index, crumb ->
-                        TextButton(onClick = { state.goTo(index + 1) }) { Text(crumb.name, maxLines = 1) }
+                        TextButton(onClick = { goTo(index + 1) }) { Text(crumb.name, maxLines = 1) }
                     }
                 }
                 OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("搜索当前目录") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -131,7 +139,7 @@ fun ShareBrowserScreen(
                                 onClick = {
                                     when {
                                         selecting -> state.toggle(file)
-                                        file.isFolder -> state.enter(file)
+                                        file.isFolder -> { rememberView(); state.enter(file) }
                                         file.isPlayableVideo() && !preparing -> {
                                             preparing = true
                                             scope.launch {
