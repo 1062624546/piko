@@ -1,6 +1,8 @@
 package dev.piko.shared.net
 
 import java.io.IOException
+import kotlinx.serialization.json.*
+import okhttp3.Headers
 import java.net.Proxy
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -26,10 +28,10 @@ class NativeMediaGatewayTest {
         val upstream = OkHttpClient.Builder().addInterceptor(PikoRelayInterceptor()).addInterceptor { chain ->
             calls++
             assertEquals("relay.example.com", chain.request().url.host)
-            assertEquals("https://video.example.com/movie.mp4?sign=ok", chain.request().url.queryParameter("url"))
-            assertEquals("bytes=3-5", chain.request().header("Range"))
-            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(206).message("Partial")
-                .header("Content-Range", "bytes 3-5/9").body("345".toResponseBody()).build()
+            val decoded = decodeTunnel(chain.request())
+            assertEquals("https://video.example.com/movie.mp4?sign=ok", decoded.metadata["url"]!!.jsonPrimitive.content)
+            assertEquals("bytes=3-5", PikoTunnel.readHeaders(decoded.metadata["headers"])["Range"])
+            encryptedResponse(chain.request(), decoded, 206, Headers.headersOf("Content-Range", "bytes 3-5/9"), "345".toByteArray())
         }.build()
         val viewer = localClient()
         NativeMediaGateway(upstream).use { gateway ->

@@ -1,6 +1,7 @@
 package dev.piko.shared.net
 
 import java.io.IOException
+import kotlinx.serialization.json.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -22,7 +23,8 @@ class PikoRelayInterceptorTest {
             .addInterceptor(PikoRelayCredentialGuard())
             .addInterceptor { chain ->
                 check(chain.request())
-                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                if (chain.request().url.encodedPath == "/v2/tunnel") encryptedResponse(chain.request(), decodeTunnel(chain.request()))
+                else Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
                     .code(200).message("OK").body("ok".toResponseBody()).build()
             }.build()
         try { client.newCall(Request.Builder().url(url).header("Authorization", "Bearer original").build()).execute().close() }
@@ -34,16 +36,20 @@ class PikoRelayInterceptorTest {
         val original = "https://api-drive.mypikpak.net/drive/v1/files?page_size=10"
         request(original) {
             assertEquals("relay.example.com", it.url.host)
-            assertEquals(original, it.url.queryParameter("url"))
-            assertEquals(relay.token, it.header("X-Piko-Relay-Token"))
-            assertEquals("Bearer original", it.header("Authorization"))
+            assertEquals("/v2/tunnel", it.url.encodedPath)
+            assertEquals(null, it.url.query)
+            assertEquals(null, it.header("X-Piko-Relay-Token"))
+            assertEquals(null, it.header("Authorization"))
+            val meta = decodeTunnel(it).metadata
+            assertEquals(original, meta["url"]!!.jsonPrimitive.content)
+            assertEquals("Bearer original", PikoTunnel.readHeaders(meta["headers"])["Authorization"])
         }
     }
 
     @Test fun allExternalRequestsUseRelayButLocalAndRelayItselfStayDirect() {
         PikoProxySelector.apply(setting)
         for (url in listOf("https://dl.mypikpak.com/file", "https://api.github.com/repos/x/releases", "https://metatube.example.com/v1/search", "https://storage.example.com/upload")) {
-            request(url) { assertEquals("relay.example.com", it.url.host); assertEquals(url, it.url.queryParameter("url")) }
+            request(url) { assertEquals("relay.example.com", it.url.host); assertEquals(url, decodeTunnel(it).metadata["url"]!!.jsonPrimitive.content) }
         }
         for (url in listOf("http://127.0.0.1:3456/file", "http://localhost/file", "http://[::1]/file", "https://relay.example.com/v1/check")) {
             request(url) { assertEquals(null, it.header("X-Piko-Relay-Token")) }

@@ -1,7 +1,7 @@
 # Piko 专用 Cloudflare 中继
 
-与 Piko 的「网络代理 → Web 代理」配套，协议 `piko-relay-v1`。不是 TG/MTProto、HTTP CONNECT 或通用 SOCKS 代理。
-不需要 D1、KV、R2、Durable Objects 或定时任务。
+与 Piko 的「网络代理 → Web 代理」配套，协议 `piko-tunnel-v2`（保留旧版 v1 接口用于升级过渡）。不是 TG/MTProto、HTTP CONNECT 或通用 SOCKS 代理。
+不需要 D1、KV 或 R2。v2 使用 SQLite Durable Object 防重放，只保存随机请求标识和过期时间，约 5 分钟后清理；会消耗相应 Workers/DO 额度。
 
 ## 部署
 
@@ -71,3 +71,26 @@ Worker Secret `RELAY_TOKENS` 的内容是一个 JSON 对象，键为名称、值
 - `npm test` 覆盖鉴权、公开地址边界、Range、流式响应、跨源跳转与写入重放保护。
 
 连接测试通过不等于已验证真实账号登录或完整视频播放；后两项需在安装新 APK 后实测。
+
+## v2 加密隧道（App 1.4.2 起）
+
+App 只发 `POST /v2/tunnel`，无目标 URL 查询参数，无业务 Authorization/Cookie 或代理 token 请求头。
+HTTP 外层仍有 Host、Content-Type、User-Agent 等传输必需字段；中继域名、流量大小与时序不会隐藏。
+目标地址、方法、业务请求头、URL 参数、正文及响应状态、响应头、正文均封装在认证密文中。
+不回退到 v1 或直连。连接测试也使用 v2。原导入链接与凭证不变。
+
+- 请求前缀：`PIKO2\n`（6 字节）+ token 的 SHA-256 前 16 字节（公开路由标识）+ 32 字节随机 salt。
+- 请求 key：HKDF-SHA256，IKM=token UTF-8，salt=请求 salt，info=`piko-tunnel-v2/request`，输出 32 字节。
+- 响应前缀：32 字节独立随机 salt。响应 key 的 HKDF salt 为请求 salt 拼接响应 salt，info=`piko-tunnel-v2/response`。
+- 每条记录：4 字节大端密文长度 + AES-256-GCM 密文（含 16 字节 tag）。明文为 1 字节类型 + 最多 65536 字节数据。
+- 类型 0 为 JSON 元数据，只允许首条；1 为中间数据；2 为最后数据（可为空）。没有合法结束记录不能视作完整响应。
+- GCM nonce：4 字节零 + 8 字节大端序号，从 0 起。AAD：协议 magic + 8 字节序号 + 4 字节密文长度。
+- 序号不能超过 2^32-1；每次请求新 salt，响应独立新 salt，密钥按方向隔离。拒绝修改、错序及截断的记录。
+- 请求元数据含毫秒时间戳，仅接受与服务端相差 120 秒内的请求。每个凭证独立 DO 原子登记 salt，先登记后转发，失败时也不重放。
+- 大文件逐条处理，不全量缓冲。已认证的数据可边接收边使用；未完整读取的流不能证明整体完成。
+
+这是基于高熵预共享凭证的应用层加密，没有独立的前向保密能力，仍依赖外层 HTTPS。
+Worker 必须解密再转发，Cloudflare 平台及能修改 Worker 的管理员仍能访问明文。
+凭证或已解锁设备被控制时无法保证保密。不要公开导入链接。
+
+`npm test` 包含 Node Web Crypto 与 JVM/JCE 共用固定向量，以及篡改、过期、重放、方向隔离、大文件分块和 Range 测试。

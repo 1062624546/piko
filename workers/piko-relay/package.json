@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test worker.test.mjs",
+    "test": "node --test worker.test.mjs tunnel.test.mjs replay.integration.test.mjs",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev"
   },

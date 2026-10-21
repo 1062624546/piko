@@ -22,20 +22,9 @@ class PikoRelayInterceptor(private val mediaClient: Boolean = false) : Intercept
         // 只有中继本身与本机通信直接连接，其余 HTTP 请求必须经中继。
         if (url.scheme == endpoint.scheme && url.host == endpoint.host && url.port == endpoint.port)
             return chain.proceed(original)
-        val routed = original.newBuilder()
-            .url(relay.endpoint.toHttpUrl().newBuilder().encodedPath("/v1/relay")
-                .addQueryParameter("url", url.toString()).build())
-            .tag(RelayDestination::class.java, RelayDestination(relay.endpoint.toHttpUrl().host))
-            .removeHeader("Host")
-            .header("X-Piko-Relay-Token", relay.token)
-            .build()
-        val response = try { chain.proceed(routed) }
-        catch (e: IOException) { throw IOException("Web 代理连接失败，请检查代理设置；未切换为直连", e) }
-        if (response.header("X-Piko-Relay-Error") != null) {
-            response.close()
-            throw IOException("Web 代理无法完成请求，请检查凭证、目标地址或代理连接；未切换为直连")
-        }
-        return response
+        val exchange = PikoTunnel.Exchange(relay, original)
+        return try { exchange.response(chain.proceed(exchange.request())) }
+        catch (e: IOException) { throw IOException("加密代理连接失败；未切换为直连", e) }
     }
 
     companion object {
@@ -50,16 +39,13 @@ class PikoRelayInterceptor(private val mediaClient: Boolean = false) : Intercept
     }
 }
 
-private data class RelayDestination(val host: String)
-
 /** OkHttp 每次重定向后的网络请求也必须检查，禁止把中继凭证带到另一个源。 */
 class PikoRelayCredentialGuard : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        if (request.header("X-Piko-Relay-Token") != null) {
-            val destination = request.tag(RelayDestination::class.java)
-            if (destination == null || !request.url.isHttps || request.url.port != 443 || request.url.host != destination.host)
-                throw IOException("中继跳转到其他地址，已拒绝发送访问凭证")
+        request.tag(TunnelDestination::class.java)?.let { destination ->
+            if (request.url.toString() != "${destination.endpoint}/v2/tunnel" || !request.url.isHttps)
+                throw IOException("加密中继跳转到其他地址，已拒绝发送请求")
         }
         return chain.proceed(request)
     }
@@ -91,19 +77,15 @@ fun pikoRelayHttpClient(media: Boolean = false): HttpClient = HttpClient(OkHttp)
 fun testPikoRelay(profile: RelayProfile): String {
     require(profile.isValid) { "请先填写完整的中继地址与访问凭证" }
     val client = OkHttpClient.Builder().proxy(Proxy.NO_PROXY)
+        .addNetworkInterceptor(PikoRelayCredentialGuard())
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .callTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
         .followRedirects(false).followSslRedirects(false).build()
     try {
-        val request = okhttp3.Request.Builder().url("${profile.endpoint}/v1/check")
-            .header("X-Piko-Relay-Token", profile.token).build()
-        client.newCall(request).execute().use { response ->
-            return when {
-                response.code == 401 -> "访问凭证不正确或已失效"
-                response.code == 200 && response.header("X-Piko-Relay-Protocol") == "piko-relay-v1" -> "连接成功，凭证有效，上游可达"
-                response.code == 502 -> "中继可达，但连接 PikPak 失败"
-                else -> "连接失败（HTTP ${response.code}），请检查中继部署"
-            }
+        val original = okhttp3.Request.Builder().url("https://api-drive.mypikpak.com/drive/v1/files?page_size=1").build()
+        val exchange = PikoTunnel.Exchange(profile, original)
+        client.newCall(exchange.request()).execute().let(exchange::response).use { response ->
+            return if (response.code == 401) "加密连接成功，凭证有效，上游可达" else "加密代理可达，上游返回 HTTP ${response.code}"
         }
     } finally {
         client.connectionPool.evictAll()

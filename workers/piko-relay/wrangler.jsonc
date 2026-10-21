@@ -1,9 +1,30 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "piko-relay",
-  "main": "worker.mjs",
+  "main": "main.mjs",
   "compatibility_date": "2026-10-21",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
   "workers_dev": true,
-  "observability": { "enabled": false }
+  "observability": {
+    "enabled": false
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "REPLAY_GUARD",
+        "class_name": "PikoReplayGuard"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "piko-encrypted-v2",
+      "new_sqlite_classes": [
+        "PikoReplayGuard"
+      ]
+    }
+  ]
 }
